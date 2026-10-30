@@ -287,7 +287,7 @@ func PatchConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput,
 
 // DeleteConnection delete a redmine_go connection
 // @Summary delete a redmine_go connection
-// @Description Delete a Redmine connection
+// @Description Delete a Redmine connection and, with it, the trackers, statuses, priorities, custom fields, accounts and observed fields collected for it
 // @Tags plugins/redmine_go
 // @Success 200  {object} models.RedmineGoConnection
 // @Failure 400  {string} errcode.Error "Bad Request"
@@ -295,7 +295,18 @@ func PatchConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput,
 // @Failure 500  {string} errcode.Error "Internal Error"
 // @Router /plugins/redmine_go/connections/{connectionId} [DELETE]
 func DeleteConnection(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, errors.Error) {
-	return dsHelper.ConnApi.Delete(input)
+	connectionId, err := connectionIdOf(input.Params)
+	if err != nil {
+		return nil, err
+	}
+	output, err := dsHelper.ConnApi.Delete(input)
+	if err != nil {
+		return output, err
+	}
+	if err := DeleteConnectionMetadata(basicRes.GetDal(), connectionId); err != nil {
+		return nil, errors.Default.Wrap(err, "the connection was deleted but its collected metadata could not be removed")
+	}
+	return output, nil
 }
 
 // ListConnections get all redmine_go connections
