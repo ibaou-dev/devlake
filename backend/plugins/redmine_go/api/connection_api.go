@@ -114,6 +114,14 @@ func diagnoseTestFailure(statusCode int) errors.Error {
 	}
 }
 
+// unreachable reports a transport failure of the connection test as a
+// one-line message that names the endpoint.
+func unreachable(endpoint string, cause errors.Error) errors.Error {
+	basicRes.GetLogger().Warn(cause, "cannot reach Redmine while testing a connection")
+	return errors.HttpStatus(http.StatusBadRequest).New(fmt.Sprintf(
+		"cannot reach Redmine at %s: %s; check the endpoint, the network and the proxy", endpoint, transportReason(cause)))
+}
+
 // parseCurrentUser decodes a `users/current.json` body. A body that is not a
 // Redmine user, typically the HTML login page of an authentication proxy or of
 // a Redmine whose REST service is off, yields a message that says so.
@@ -149,11 +157,11 @@ func testConnection(ctx context.Context, connection models.RedmineGoConn) (*Redm
 	connection.Endpoint = endpoint
 	apiClient, err := helper.NewApiClientFromConnection(ctx, basicRes, &connection)
 	if err != nil {
-		return nil, errors.BadInput.Wrap(err, "cannot reach Redmine")
+		return nil, unreachable(endpoint, err)
 	}
 	res, err := apiClient.Get("users/current.json", nil, nil)
 	if err != nil {
-		return nil, errors.BadInput.Wrap(err, "error checking the Redmine connection")
+		return nil, unreachable(endpoint, err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {

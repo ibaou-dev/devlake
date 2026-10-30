@@ -18,6 +18,10 @@ limitations under the License.
 package api
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/apache/devlake/core/errors"
@@ -74,4 +78,56 @@ func TestProxyRefusesPathsOutsideTheAllowlist(t *testing.T) {
 		assert.Equal(t, 403, err.GetType().GetHttpCode())
 		assert.Contains(t, err.Error(), "only forwards Redmine metadata paths")
 	}
+}
+
+func metadataResponse(status int, contentType, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": {contentType}, "X-Redmine-Total": {"7"}, "Set-Cookie": {"_redmine_session=secret"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
+
+func TestForwardMetadata(t *testing.T) {
+	setupTestGlobals()
+
+	t.Run("a JSON answer passes through with its x- headers only", func(t *testing.T) {
+		out, err := forwardMetadata("trackers.json", metadataResponse(http.StatusOK, "application/json", `{"trackers":[]}`))
+		require.Nil(t, err)
+		assert.Equal(t, http.StatusOK, out.Status)
+		assert.JSONEq(t, `{"trackers":[]}`, string(out.Body.(json.RawMessage)))
+		assert.Equal(t, "7", out.Header.Get("X-Redmine-Total"))
+		assert.Empty(t, out.Header.Get("Set-Cookie"), "session cookies never reach the browser")
+	})
+
+	t.Run("an empty 403 says why instead of failing to decode JSON", func(t *testing.T) {
+		out, err := forwardMetadata("custom_fields.json", metadataResponse(http.StatusForbidden, "text/plain", ""))
+		require.NotNil(t, err)
+		assert.Nil(t, out)
+		assert.Equal(t, http.StatusBadRequest, err.GetType().GetHttpCode())
+		assert.Contains(t, err.Error(), "answered 403 for custom_fields.json")
+		assert.Contains(t, err.Error(), "administrator key")
+		assert.Contains(t, err.Error(), "REST web service is disabled")
+		assert.NotContains(t, err.Error(), "Wraps")
+	})
+
+	t.Run("a wrong key", func(t *testing.T) {
+		_, err := forwardMetadata("trackers.json", metadataResponse(http.StatusUnauthorized, "text/plain", ""))
+		require.NotNil(t, err)
+		assert.Contains(t, err.Error(), "answered 401 for trackers.json")
+		assert.Contains(t, err.Error(), "API key")
+	})
+
+	t.Run("a wrong base path", func(t *testing.T) {
+		_, err := forwardMetadata("trackers.json", metadataResponse(http.StatusNotFound, "text/html", "<html></html>"))
+		require.NotNil(t, err)
+		assert.Contains(t, err.Error(), "sub-URI")
+	})
+
+	t.Run("a login page answered with 200", func(t *testing.T) {
+		_, err := forwardMetadata("trackers.json", metadataResponse(http.StatusOK, "text/html", "<html>login</html>"))
+		require.NotNil(t, err)
+		assert.Contains(t, err.Error(), "did not answer trackers.json with JSON")
+		assert.NotContains(t, err.Error(), "<html")
+	})
 }
