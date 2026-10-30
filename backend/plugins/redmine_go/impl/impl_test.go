@@ -98,6 +98,7 @@ func TestApiResourcesExposeTheContractRoutes(t *testing.T) {
 		"connections/:connectionId/scope-configs":                {"POST", "GET"},
 		"connections/:connectionId/scope-configs/:scopeConfigId": {"PATCH", "GET", "DELETE"},
 		"connections/:connectionId/scope-config-defaults":        {"GET"},
+		"connections/:connectionId/observed-values":              {"GET"},
 		"connections/:connectionId/scopes":                       {"GET", "PUT"},
 		"connections/:connectionId/scopes/:scopeId":              {"GET", "PATCH", "DELETE"},
 		"scope-config/:scopeConfigId/projects":                   {"GET"},

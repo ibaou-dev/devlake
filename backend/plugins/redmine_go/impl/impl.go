@@ -258,6 +258,9 @@ func (p RedmineGo) ApiResources() map[string]map[string]plugin.ApiResourceHandle
 		"connections/:connectionId/scope-config-defaults": {
 			"GET": api.GetScopeConfigDefaults,
 		},
+		"connections/:connectionId/observed-values": {
+			"GET": api.GetObservedValues,
+		},
 		"connections/:connectionId/scopes": {
 			"GET": api.GetScopeList,
 			"PUT": api.PutScopes,
