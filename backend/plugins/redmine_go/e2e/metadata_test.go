@@ -115,3 +115,18 @@ func TestMetadataIsReplacedPerRun(t *testing.T) {
 	assert.Equal(t, before-1, count(t, tester, &models.RedmineGoStatus{}, ""))
 	assert.Zero(t, count(t, tester, &models.RedmineGoStatus{}, "name = ?", "Rejected by QA"))
 }
+
+// A list that became empty in Redmine, such as the last issue category of a
+// project, is cleared from the tool layer too; the other projects' rows stay.
+func TestMetadataEmptiedListIsCleared(t *testing.T) {
+	tester := newDataFlowTester(t)
+	importMetadata(t, tester)
+	require.Equal(t, int64(2), count(t, tester, &models.RedmineGoIssueCategory{}, "project_id = ?", 6))
+	versions := count(t, tester, &models.RedmineGoVersion{}, "")
+
+	require.NoError(t, tester.Db.Exec("DELETE FROM _raw_redmine_go_issue_categories").Error)
+	tester.Subtask(tasks.ExtractIssueCategoriesMeta, newTaskData(6, zeroConfig()))
+
+	assert.Zero(t, count(t, tester, &models.RedmineGoIssueCategory{}, ""), "the project's categories are gone")
+	assert.Equal(t, versions, count(t, tester, &models.RedmineGoVersion{}, ""), "other lists are untouched")
+}

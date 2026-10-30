@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/apache/devlake/core/dal"
 	"github.com/apache/devlake/core/errors"
 	"github.com/apache/devlake/core/log"
 	"github.com/apache/devlake/core/plugin"
+	"github.com/apache/devlake/core/utils"
 	helper "github.com/apache/devlake/helpers/pluginhelper/api"
 	"github.com/apache/devlake/plugins/redmine_go/models"
 )
@@ -43,6 +45,8 @@ const (
 // tool rows of the same origin.
 type metadataList struct {
 	rawTable string
+	// toolTable is the model the list's tool rows are stored in.
+	toolTable interface{}
 	// url is the request path; project lists use the scope's project id.
 	url string
 	// listKey names the array inside the response object.
@@ -55,12 +59,12 @@ type metadataList struct {
 }
 
 var (
-	trackersList     = metadataList{rawTable: RAW_TRACKERS_TABLE, url: "trackers.json", listKey: "trackers"}
-	statusesList     = metadataList{rawTable: RAW_STATUSES_TABLE, url: "issue_statuses.json", listKey: "issue_statuses"}
-	prioritiesList   = metadataList{rawTable: RAW_PRIORITIES_TABLE, url: "enumerations/issue_priorities.json", listKey: "issue_priorities"}
-	customFieldsList = metadataList{rawTable: RAW_CUSTOM_FIELDS_TABLE, url: "custom_fields.json", listKey: "custom_fields", adminOnly: true}
-	versionsList     = metadataList{rawTable: RAW_VERSIONS_TABLE, url: "projects/{{ .Params.ProjectId }}/versions.json", listKey: "versions", perProject: true}
-	categoriesList   = metadataList{rawTable: RAW_ISSUE_CATEGORIES_TABLE, url: "projects/{{ .Params.ProjectId }}/issue_categories.json", listKey: "issue_categories", perProject: true}
+	trackersList     = metadataList{rawTable: RAW_TRACKERS_TABLE, toolTable: &models.RedmineGoTracker{}, url: "trackers.json", listKey: "trackers"}
+	statusesList     = metadataList{rawTable: RAW_STATUSES_TABLE, toolTable: &models.RedmineGoStatus{}, url: "issue_statuses.json", listKey: "issue_statuses"}
+	prioritiesList   = metadataList{rawTable: RAW_PRIORITIES_TABLE, toolTable: &models.RedmineGoPriority{}, url: "enumerations/issue_priorities.json", listKey: "issue_priorities"}
+	customFieldsList = metadataList{rawTable: RAW_CUSTOM_FIELDS_TABLE, toolTable: &models.RedmineGoCustomField{}, url: "custom_fields.json", listKey: "custom_fields", adminOnly: true}
+	versionsList     = metadataList{rawTable: RAW_VERSIONS_TABLE, toolTable: &models.RedmineGoVersion{}, url: "projects/{{ .Params.ProjectId }}/versions.json", listKey: "versions", perProject: true}
+	categoriesList   = metadataList{rawTable: RAW_ISSUE_CATEGORIES_TABLE, toolTable: &models.RedmineGoIssueCategory{}, url: "projects/{{ .Params.ProjectId }}/issue_categories.json", listKey: "issue_categories", perProject: true}
 )
 
 // options returns the raw-data identity of the list for a task: the project for
@@ -116,8 +120,15 @@ func (l metadataList) afterResponse(logger log.Logger) plugin.ApiClientAfterResp
 
 // extract turns the raw rows into tool rows with fn and replaces the tool rows
 // of the same origin, so an item deleted in Redmine disappears from the tool
-// layer.
+// layer. The old rows are deleted up front because the batch saver only
+// replaces the rows of a table it receives a row for: a list that became empty
+// would otherwise keep its last items.
 func (l metadataList) extract(taskCtx plugin.SubTaskContext, fn func(row *helper.RawData) ([]interface{}, errors.Error)) errors.Error {
+	data := taskCtx.GetData().(*RedmineGoTaskData)
+	if err := taskCtx.GetDal().Delete(l.toolTable, dal.Where("_raw_data_table = ? AND _raw_data_params = ?",
+		rawTableName(l.rawTable), utils.ToJsonString(l.options(data).GetParams()))); err != nil {
+		return err
+	}
 	extractor, err := helper.NewApiExtractor(helper.ApiExtractorArgs{
 		RawDataSubTaskArgs: l.rawArgs(taskCtx),
 		Extract:            fn,
