@@ -110,8 +110,8 @@ func (p RedmineGo) GetTablesInfo() []dal.Tabler {
 }
 
 // SubTaskMetas declares every subtask in execution order: metadata, then
-// issues and their journals. The list's order is the contract: no
-// Dependencies fields anywhere in the plugin.
+// issues and their journals, then the conversion to the domain layer. The
+// list's order is the contract: no Dependencies fields anywhere in the plugin.
 func (p RedmineGo) SubTaskMetas() []plugin.SubTaskMeta {
 	return []plugin.SubTaskMeta{
 		tasks.CollectTrackersMeta,
@@ -130,6 +130,10 @@ func (p RedmineGo) SubTaskMetas() []plugin.SubTaskMeta {
 		tasks.ExtractIssuesMeta,
 		tasks.CollectIssueDetailsMeta,
 		tasks.ExtractIssueJournalsMeta,
+		tasks.ConvertProjectsMeta,
+		tasks.ConvertAccountsMeta,
+		tasks.ConvertIssuesMeta,
+		tasks.ConvertIssueChangelogsMeta,
 	}
 }
 
