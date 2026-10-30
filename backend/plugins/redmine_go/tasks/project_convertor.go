@@ -104,3 +104,8 @@ func projectUrl(endpoint string, project *models.RedmineGoProject) string {
 func issueUrl(endpoint string, issueId uint64) string {
 	return endpoint + "/issues/" + idString(issueId)
 }
+
+// versionUrl is the version's web page.
+func versionUrl(endpoint string, versionId uint64) string {
+	return endpoint + "/versions/" + idString(versionId)
+}

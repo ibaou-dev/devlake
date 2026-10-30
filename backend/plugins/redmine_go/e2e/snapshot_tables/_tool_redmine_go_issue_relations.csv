@@ -1,0 +1,6 @@
+connection_id,id,project_id,issue_id,issue_to_id,relation_type,delay
+1,15,6,158,159,relates,
+1,16,6,160,161,duplicates,
+1,17,6,162,163,blocks,
+1,18,6,164,165,precedes,2
+1,19,6,166,167,copied_to,

@@ -1,0 +1,6 @@
+source_issue_id,target_issue_id,original_type
+redmine_go:RedmineGoIssue:1:158,redmine_go:RedmineGoIssue:1:159,relates
+redmine_go:RedmineGoIssue:1:160,redmine_go:RedmineGoIssue:1:161,duplicates
+redmine_go:RedmineGoIssue:1:162,redmine_go:RedmineGoIssue:1:163,blocks
+redmine_go:RedmineGoIssue:1:164,redmine_go:RedmineGoIssue:1:165,precedes
+redmine_go:RedmineGoIssue:1:166,redmine_go:RedmineGoIssue:1:167,copied_to

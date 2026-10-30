@@ -23,6 +23,17 @@ import (
 
 // SubtaskToggles names the scope-config toggle that gates each optional
 // subtask, keyed by subtask name. The blueprint leaves a gated subtask out of
-// the plan when its toggle is off; subtasks absent from the map always run.
-// Optional subtasks register their toggle here when they are added.
-var SubtaskToggles = map[string]models.Toggle{}
+// the plan when its toggle is off, whether the scope config or a REDMINE_GO_*
+// environment flag turned it off; subtasks absent from the map always run.
+// includePrivateNotes gates no subtask: the comment convertor reads it.
+var SubtaskToggles = map[string]models.Toggle{
+	CollectIssueSweepMeta.Name:      models.ToggleReconcileSweep,
+	ExtractIssueSweepMeta.Name:      models.ToggleReconcileSweep,
+	CollectTimeEntriesMeta.Name:     models.ToggleCollectTimeEntries,
+	ExtractTimeEntriesMeta.Name:     models.ToggleCollectTimeEntries,
+	ConvertWorklogsMeta.Name:        models.ToggleCollectTimeEntries,
+	ExtractIssueChangesetsMeta.Name: models.ToggleCollectChangesets,
+	ConvertIssueCommitsMeta.Name:    models.ToggleCollectChangesets,
+	ConvertIssueCommentsMeta.Name:   models.ToggleCollectComments,
+	ConvertSprintsMeta.Name:         models.ToggleVersionsAsSprints,
+}

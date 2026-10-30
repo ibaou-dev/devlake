@@ -1,0 +1,5 @@
+id,name,url,status,started_date,ended_date,completed_date,original_board_id,committed_story_point,completed_story_point
+redmine_go:RedmineGoVersion:1:21,RGO 1.0 (open),https://redmine.example.org/versions/21,ACTIVE,2026-10-30T00:40:36.000+00:00,,,redmine_go:RedmineGoProject:1:6,,
+redmine_go:RedmineGoVersion:1:22,RGO 2.0 (open),https://redmine.example.org/versions/22,ACTIVE,2026-10-30T00:40:36.000+00:00,,,redmine_go:RedmineGoProject:1:6,,
+redmine_go:RedmineGoVersion:1:23,RGO 0.9 (closed),https://redmine.example.org/versions/23,CLOSED,2026-10-30T00:40:36.000+00:00,,,redmine_go:RedmineGoProject:1:6,,
+redmine_go:RedmineGoVersion:1:24,RGO 0.8 (locked),https://redmine.example.org/versions/24,CLOSED,2026-10-30T00:40:36.000+00:00,,,redmine_go:RedmineGoProject:1:6,,

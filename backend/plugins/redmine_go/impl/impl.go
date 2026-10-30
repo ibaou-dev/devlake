@@ -106,12 +106,18 @@ func (p RedmineGo) GetTablesInfo() []dal.Tabler {
 		&models.RedmineGoIssue{},
 		&models.RedmineGoJournal{},
 		&models.RedmineGoJournalDetail{},
+		&models.RedmineGoIssueRelation{},
+		&models.RedmineGoIssueChangeset{},
+		&models.RedmineGoTimeEntry{},
 	}
 }
 
 // SubTaskMetas declares every subtask in execution order: metadata, then
-// issues and their journals, then the conversion to the domain layer. The
-// list's order is the contract: no Dependencies fields anywhere in the plugin.
+// issues, their journals, relations and changesets, the reconciliation sweep
+// and time entries, then the conversion to the domain layer. The sweep runs
+// after the extractors that fill the tables it prunes and before every
+// convertor. The list's order is the contract: no Dependencies fields
+// anywhere in the plugin.
 func (p RedmineGo) SubTaskMetas() []plugin.SubTaskMeta {
 	return []plugin.SubTaskMeta{
 		tasks.CollectTrackersMeta,
@@ -130,10 +136,21 @@ func (p RedmineGo) SubTaskMetas() []plugin.SubTaskMeta {
 		tasks.ExtractIssuesMeta,
 		tasks.CollectIssueDetailsMeta,
 		tasks.ExtractIssueJournalsMeta,
+		tasks.ExtractIssueRelationsMeta,
+		tasks.ExtractIssueChangesetsMeta,
+		tasks.CollectIssueSweepMeta,
+		tasks.ExtractIssueSweepMeta,
+		tasks.CollectTimeEntriesMeta,
+		tasks.ExtractTimeEntriesMeta,
 		tasks.ConvertProjectsMeta,
 		tasks.ConvertAccountsMeta,
 		tasks.ConvertIssuesMeta,
 		tasks.ConvertIssueChangelogsMeta,
+		tasks.ConvertIssueRelationshipsMeta,
+		tasks.ConvertIssueCommentsMeta,
+		tasks.ConvertIssueCommitsMeta,
+		tasks.ConvertWorklogsMeta,
+		tasks.ConvertSprintsMeta,
 	}
 }
 
@@ -191,6 +208,7 @@ func (p RedmineGo) PrepareTaskData(taskCtx plugin.TaskContext, options map[strin
 		ScopeConfig: scopeConfig,
 		Project:     project,
 		ApiClient:   apiClient,
+		IssueProbe:  tasks.NewIssueProbe(apiClient),
 	}
 	if op.TimeAfter != "" {
 		timeAfter, errConv := errors.Convert01(time.Parse(time.RFC3339, op.TimeAfter))
