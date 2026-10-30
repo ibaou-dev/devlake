@@ -107,17 +107,22 @@ func deleteDomainByOrigin(db dal.Dal, model interface{}, rawTables []string, par
 // issue_id columns to the issues of the task's project.
 const issuesInScope = "INNER JOIN _tool_redmine_go_issues i ON (i.connection_id = %s.connection_id AND i.id = %s.issue_id)"
 
-// scopedRows opens a cursor over the rows of a tool table (alias given) that
-// belong to issues of the task's project.
-func scopedRows(db dal.Dal, table, alias string, data *RedmineGoTaskData, extra ...dal.Clause) (dal.Rows, errors.Error) {
-	join := fmt.Sprintf(issuesInScope, alias, alias)
+// scopedClauses selects the rows of a tool table (alias given) that belong to
+// issues of the task's project, without a column list so the same clauses
+// serve a count and a cursor.
+func scopedClauses(table, alias string, data *RedmineGoTaskData, extra ...dal.Clause) []dal.Clause {
 	clauses := []dal.Clause{
-		dal.Select(alias + ".*"),
 		dal.From(table + " " + alias),
-		dal.Join(join),
+		dal.Join(fmt.Sprintf(issuesInScope, alias, alias)),
 		dal.Where(alias+".connection_id = ? AND i.project_id = ?", data.Options.ConnectionId, data.Options.ProjectId),
 	}
-	return db.Cursor(append(clauses, extra...)...)
+	return append(clauses, extra...)
+}
+
+// scopedRows opens a cursor over the rows of a tool table (alias given) that
+// belong to issues of the task's project.
+func scopedRows(db dal.Dal, alias string, clauses []dal.Clause) (dal.Rows, errors.Error) {
+	return db.Cursor(append([]dal.Clause{dal.Select(alias + ".*")}, clauses...)...)
 }
 
 // ConvertIssueRelationships converts the relations of the scope's project to
@@ -136,16 +141,17 @@ func ConvertIssueRelationships(taskCtx plugin.SubTaskContext) errors.Error {
 		[]string{rawTableName(RAW_ISSUE_DETAILS_TABLE), rawTableName(RAW_ISSUE_SWEEP_TABLE)}, scopeParams(data)); err != nil {
 		return err
 	}
-	cursor, err := db.Cursor(
+	scope := []dal.Clause{
 		dal.From(&models.RedmineGoIssueRelation{}),
 		dal.Where("connection_id = ? AND project_id = ?", connectionId, data.Options.ProjectId),
-	)
+	}
+	cursor, err := db.Cursor(scope...)
 	if err != nil {
 		return err
 	}
 	defer cursor.Close()
 	converter, err := helper.NewDataConverter(helper.DataConverterArgs{
-		RawDataSubTaskArgs: scopeRawArgs(taskCtx, data, RAW_ISSUE_DETAILS_TABLE),
+		RawDataSubTaskArgs: scopeRawArgs(withCountedTotal(taskCtx, scope...), data, RAW_ISSUE_DETAILS_TABLE),
 		InputRowType:       reflect.TypeOf(models.RedmineGoIssueRelation{}),
 		Input:              cursor,
 		Convert: func(inputRow interface{}) ([]interface{}, errors.Error) {
@@ -164,7 +170,8 @@ func ConvertIssueRelationships(taskCtx plugin.SubTaskContext) errors.Error {
 }
 
 // scopeRawArgs is the raw-data identity of a conversion over the given raw
-// table of the task's project.
+// table of the task's project. The context is the subtask's, possibly
+// wrapped to report a total.
 func scopeRawArgs(taskCtx plugin.SubTaskContext, data *RedmineGoTaskData, table string) helper.RawDataSubTaskArgs {
 	return helper.RawDataSubTaskArgs{
 		Ctx: taskCtx,
@@ -193,13 +200,14 @@ func ConvertIssueComments(taskCtx plugin.SubTaskContext) errors.Error {
 	if err := deleteDomainByOrigin(db, &ticket.IssueComment{}, []string{rawTableName(RAW_ISSUE_DETAILS_TABLE)}, scopeParams(data)); err != nil {
 		return err
 	}
-	cursor, err := scopedRows(db, models.RedmineGoJournal{}.TableName(), "j", data, dal.Where("j.notes <> ''"))
+	scope := scopedClauses(models.RedmineGoJournal{}.TableName(), "j", data, dal.Where("j.notes <> ''"))
+	cursor, err := scopedRows(db, "j", scope)
 	if err != nil {
 		return err
 	}
 	defer cursor.Close()
 	converter, err := helper.NewDataConverter(helper.DataConverterArgs{
-		RawDataSubTaskArgs: scopeRawArgs(taskCtx, data, RAW_ISSUE_DETAILS_TABLE),
+		RawDataSubTaskArgs: scopeRawArgs(withCountedTotal(taskCtx, scope...), data, RAW_ISSUE_DETAILS_TABLE),
 		InputRowType:       reflect.TypeOf(models.RedmineGoJournal{}),
 		Input:              cursor,
 		Convert: func(inputRow interface{}) ([]interface{}, errors.Error) {
@@ -240,13 +248,14 @@ func ConvertIssueCommits(taskCtx plugin.SubTaskContext) errors.Error {
 	if err := deleteDomainByOrigin(db, &crossdomain.IssueCommit{}, []string{rawTableName(RAW_ISSUE_DETAILS_TABLE)}, scopeParams(data)); err != nil {
 		return err
 	}
-	cursor, err := scopedRows(db, models.RedmineGoIssueChangeset{}.TableName(), "c", data)
+	scope := scopedClauses(models.RedmineGoIssueChangeset{}.TableName(), "c", data)
+	cursor, err := scopedRows(db, "c", scope)
 	if err != nil {
 		return err
 	}
 	defer cursor.Close()
 	converter, err := helper.NewDataConverter(helper.DataConverterArgs{
-		RawDataSubTaskArgs: scopeRawArgs(taskCtx, data, RAW_ISSUE_DETAILS_TABLE),
+		RawDataSubTaskArgs: scopeRawArgs(withCountedTotal(taskCtx, scope...), data, RAW_ISSUE_DETAILS_TABLE),
 		InputRowType:       reflect.TypeOf(models.RedmineGoIssueChangeset{}),
 		Input:              cursor,
 		Convert: func(inputRow interface{}) ([]interface{}, errors.Error) {
@@ -277,13 +286,14 @@ func ConvertWorklogs(taskCtx plugin.SubTaskContext) errors.Error {
 	if err := deleteDomainByOrigin(db, &ticket.IssueWorklog{}, []string{rawTableName(RAW_TIME_ENTRIES_TABLE)}, scopeParams(data)); err != nil {
 		return err
 	}
-	cursor, err := scopedRows(db, models.RedmineGoTimeEntry{}.TableName(), "t", data)
+	scope := scopedClauses(models.RedmineGoTimeEntry{}.TableName(), "t", data)
+	cursor, err := scopedRows(db, "t", scope)
 	if err != nil {
 		return err
 	}
 	defer cursor.Close()
 	converter, err := helper.NewDataConverter(helper.DataConverterArgs{
-		RawDataSubTaskArgs: scopeRawArgs(taskCtx, data, RAW_TIME_ENTRIES_TABLE),
+		RawDataSubTaskArgs: scopeRawArgs(withCountedTotal(taskCtx, scope...), data, RAW_TIME_ENTRIES_TABLE),
 		InputRowType:       reflect.TypeOf(models.RedmineGoTimeEntry{}),
 		Input:              cursor,
 		Convert: func(inputRow interface{}) ([]interface{}, errors.Error) {

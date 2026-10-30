@@ -39,11 +39,18 @@ type detailExtraction struct {
 	Rows func(item *apiIssue) []interface{}
 }
 
+// deleteBatchSize is the number of issues one DELETE of replaced rows covers.
+const deleteBatchSize = 500
+
 // extractIssueDetails runs a stateful extractor over the issue detail raw
 // rows. An issue's rows are replaced as a whole each time it is extracted, so
 // an edited or re-collected issue never leaves duplicates or deleted children
 // behind, and only the newest raw row of an issue in the window expands: an
 // older version would bring back rows the newer one no longer has.
+//
+// The rows of every issue in the window are deleted up front, a batch of
+// issues per statement. Deleting issue by issue costs one auto-committed
+// statement per issue and table, about as much as the extraction itself.
 func extractIssueDetails(taskCtx plugin.SubTaskContext, spec detailExtraction) errors.Error {
 	data := taskCtx.GetData().(*RedmineGoTaskData)
 	db := taskCtx.GetDal()
@@ -52,7 +59,7 @@ func extractIssueDetails(taskCtx plugin.SubTaskContext, spec detailExtraction) e
 	var latestVersion map[uint64]uint64
 	extractor, err := helper.NewStatefulApiExtractor(&helper.StatefulApiExtractorArgs[apiIssue]{
 		SubtaskCommonArgs: &helper.SubtaskCommonArgs{
-			SubTaskContext: taskCtx,
+			SubTaskContext: withRawRowsTotal(taskCtx, rawTableName(RAW_ISSUE_DETAILS_TABLE), scopeParams(data)),
 			Table:          RAW_ISSUE_DETAILS_TABLE,
 			Params: models.RedmineGoApiParams{
 				ConnectionId: connectionId,
@@ -61,15 +68,12 @@ func extractIssueDetails(taskCtx plugin.SubTaskContext, spec detailExtraction) e
 			SubtaskConfig: spec.Config,
 		},
 		BeforeExtract: func(issue *apiIssue, _ *helper.SubtaskStateManager) errors.Error {
-			// Both modes: the divider's full-sync wipe fires only when a row of
-			// the type is emitted, so an issue whose children all vanished would
-			// otherwise keep its old rows.
-			for _, table := range spec.Replaced {
-				if err := db.Delete(table, dal.Where("connection_id = ? AND issue_id = ?", connectionId, issue.Id)); err != nil {
-					return err
-				}
+			// A row whose input column was unreadable is not in latestVersion,
+			// so its issue was not deleted up front.
+			if _, ok := latestVersion[issue.Id]; ok {
+				return nil
 			}
-			return nil
+			return deleteIssueRows(db, spec.Replaced, connectionId, []uint64{issue.Id})
 		},
 		Extract: func(item *apiIssue, row *helper.RawData) ([]interface{}, errors.Error) {
 			if latestId, ok := latestVersion[item.Id]; ok && row.ID != latestId {
@@ -85,5 +89,38 @@ func extractIssueDetails(taskCtx plugin.SubTaskContext, spec detailExtraction) e
 	if err != nil {
 		return err
 	}
+	// Both modes: the divider's full-sync wipe fires only when a row of the
+	// type is emitted, so an issue whose children all vanished would otherwise
+	// keep its old rows.
+	ids := make([]uint64, 0, len(latestVersion))
+	for id := range latestVersion {
+		ids = append(ids, id)
+	}
+	if err := deleteIssueRowsInBatches(db, spec.Replaced, connectionId, ids); err != nil {
+		return err
+	}
 	return extractor.Execute()
+}
+
+// deleteIssueRowsInBatches deletes the rows of the issues, deleteBatchSize
+// issues per statement.
+func deleteIssueRowsInBatches(db dal.Dal, tables []interface{}, connectionId uint64, issueIds []uint64) errors.Error {
+	for start := 0; start < len(issueIds); start += deleteBatchSize {
+		end := min(start+deleteBatchSize, len(issueIds))
+		if err := deleteIssueRows(db, tables, connectionId, issueIds[start:end]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// deleteIssueRows deletes the rows of the given issues from each model's
+// table; every model has connection_id and issue_id columns.
+func deleteIssueRows(db dal.Dal, tables []interface{}, connectionId uint64, issueIds []uint64) errors.Error {
+	for _, table := range tables {
+		if err := db.Delete(table, dal.Where("connection_id = ? AND issue_id IN ?", connectionId, issueIds)); err != nil {
+			return err
+		}
+	}
+	return nil
 }

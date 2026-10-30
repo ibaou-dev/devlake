@@ -163,7 +163,7 @@ func ExtractIssueSweep(taskCtx plugin.SubTaskContext) errors.Error {
 	seenRelations := map[uint64]struct{}{}
 	extractor, err := helper.NewApiExtractor(helper.ApiExtractorArgs{
 		RawDataSubTaskArgs: helper.RawDataSubTaskArgs{
-			Ctx: taskCtx,
+			Ctx: withRawRowsTotal(taskCtx, rawTableName(RAW_ISSUE_SWEEP_TABLE), scopeParams(data)),
 			Options: models.RedmineGoApiParams{
 				ConnectionId: connectionId,
 				ProjectId:    projectId,

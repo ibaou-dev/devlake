@@ -20,7 +20,6 @@ package tasks
 import (
 	"math"
 	"reflect"
-	"strconv"
 
 	"github.com/apache/devlake/core/dal"
 	"github.com/apache/devlake/core/errors"
@@ -100,18 +99,25 @@ func ConvertIssues(taskCtx plugin.SubTaskContext) errors.Error {
 		}
 	}
 
-	cursor, err := db.Cursor(
+	// Issues stream in id order, which statusHistory relies on.
+	scope := []dal.Clause{
 		dal.From(&models.RedmineGoIssue{}),
 		dal.Where("connection_id = ? AND project_id = ?", connectionId, data.Options.ProjectId),
-	)
+	}
+	cursor, err := db.Cursor(append(scope, dal.Orderby("id ASC"))...)
 	if err != nil {
 		return err
 	}
 	defer cursor.Close()
+	history, historyCursor, err := openStatusHistory(db, connectionId, data.Options.ProjectId)
+	if err != nil {
+		return err
+	}
+	defer historyCursor.Close()
 
 	converter, err := helper.NewDataConverter(helper.DataConverterArgs{
 		RawDataSubTaskArgs: helper.RawDataSubTaskArgs{
-			Ctx: taskCtx,
+			Ctx: withCountedTotal(taskCtx, scope...),
 			Options: models.RedmineGoApiParams{
 				ConnectionId: connectionId,
 				ProjectId:    data.Options.ProjectId,
@@ -131,7 +137,7 @@ func ConvertIssues(taskCtx plugin.SubTaskContext) errors.Error {
 			var changes []mapping.StatusChange
 			if status == ticket.DONE {
 				var err errors.Error
-				if changes, err = statusChanges(db, connectionId, issue.Id); err != nil {
+				if changes, err = history.changesOf(issue.Id); err != nil {
 					return nil, err
 				}
 			}
@@ -209,29 +215,4 @@ func hoursToMinutes(hours *float64) *int64 {
 	}
 	minutes := int64(math.Round(*hours * 60))
 	return &minutes
-}
-
-// statusChanges lists the issue's status transitions from its journals, oldest
-// first, for the resolution date. A change whose status ids are unreadable
-// keeps what is known: an empty side stands for no status.
-func statusChanges(db dal.Dal, connectionId, issueId uint64) ([]mapping.StatusChange, errors.Error) {
-	var details []models.RedmineGoJournalDetail
-	if err := db.All(&details,
-		dal.Where("connection_id = ? AND issue_id = ? AND property = ? AND name = ?", connectionId, issueId, "attr", "status_id"),
-		dal.Orderby("redmine_created_on ASC, journal_id ASC, position ASC"),
-	); err != nil {
-		return nil, err
-	}
-	changes := make([]mapping.StatusChange, 0, len(details))
-	for _, detail := range details {
-		change := mapping.StatusChange{At: detail.RedmineCreatedOn, FromStatusName: detail.OldLabel, ToStatusName: detail.NewLabel}
-		if id, parseErr := strconv.Atoi(detail.OldValue); parseErr == nil {
-			change.FromStatusID = id
-		}
-		if id, parseErr := strconv.Atoi(detail.NewValue); parseErr == nil {
-			change.ToStatusID = id
-		}
-		changes = append(changes, change)
-	}
-	return changes, nil
 }

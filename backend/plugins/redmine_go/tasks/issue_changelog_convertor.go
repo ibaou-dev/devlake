@@ -92,12 +92,12 @@ func ConvertIssueChangelogs(taskCtx plugin.SubTaskContext) errors.Error {
 	}
 
 	// Scope the changelogs to the project through their parent issue.
-	cursor, err := db.Cursor(
-		dal.Select("d.*"),
+	scope := []dal.Clause{
 		dal.From("_tool_redmine_go_journal_details d"),
 		dal.Join("INNER JOIN _tool_redmine_go_issues i ON (i.connection_id = d.connection_id AND i.id = d.issue_id)"),
 		dal.Where("d.connection_id = ? AND i.project_id = ?", connectionId, data.Options.ProjectId),
-	)
+	}
+	cursor, err := db.Cursor(append([]dal.Clause{dal.Select("d.*")}, scope...)...)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func ConvertIssueChangelogs(taskCtx plugin.SubTaskContext) errors.Error {
 
 	converter, err := helper.NewDataConverter(helper.DataConverterArgs{
 		RawDataSubTaskArgs: helper.RawDataSubTaskArgs{
-			Ctx: taskCtx,
+			Ctx: withCountedTotal(taskCtx, scope...),
 			Options: models.RedmineGoApiParams{
 				ConnectionId: connectionId,
 				ProjectId:    data.Options.ProjectId,

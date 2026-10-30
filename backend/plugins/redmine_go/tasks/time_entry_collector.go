@@ -137,7 +137,7 @@ func ExtractTimeEntries(taskCtx plugin.SubTaskContext) errors.Error {
 	skipped := 0
 	extractor, err := helper.NewApiExtractor(helper.ApiExtractorArgs{
 		RawDataSubTaskArgs: helper.RawDataSubTaskArgs{
-			Ctx: taskCtx,
+			Ctx: withRawRowsTotal(taskCtx, rawTableName(RAW_TIME_ENTRIES_TABLE), scopeParams(data)),
 			Options: models.RedmineGoApiParams{
 				ConnectionId: connectionId,
 				ProjectId:    projectId,

@@ -124,7 +124,7 @@ func ExtractIssues(taskCtx plugin.SubTaskContext) errors.Error {
 	connectionId := data.Options.ConnectionId
 	extractor, err := helper.NewStatefulApiExtractor(&helper.StatefulApiExtractorArgs[apiIssue]{
 		SubtaskCommonArgs: &helper.SubtaskCommonArgs{
-			SubTaskContext: taskCtx,
+			SubTaskContext: withRawRowsTotal(taskCtx, rawTableName(RAW_ISSUES_TABLE), scopeParams(data)),
 			Table:          RAW_ISSUES_TABLE,
 			Params: models.RedmineGoApiParams{
 				ConnectionId: connectionId,

@@ -134,18 +134,18 @@ func ConvertSprints(taskCtx plugin.SubTaskContext) errors.Error {
 	if err := deleteDomainByOrigin(db, &ticket.SprintIssue{}, []string{rawTableName(RAW_ISSUES_TABLE)}, params); err != nil {
 		return err
 	}
-	issues, err := db.Cursor(
-		dal.Select("i.*"),
+	issueScope := []dal.Clause{
 		dal.From("_tool_redmine_go_issues i"),
 		dal.Join("INNER JOIN _tool_redmine_go_versions v ON (v.connection_id = i.connection_id AND v.id = i.fixed_version_id)"),
 		dal.Where("i.connection_id = ? AND i.project_id = ?", connectionId, projectId),
-	)
+	}
+	issues, err := db.Cursor(append([]dal.Clause{dal.Select("i.*")}, issueScope...)...)
 	if err != nil {
 		return err
 	}
 	defer issues.Close()
 	issueConverter, err := helper.NewDataConverter(helper.DataConverterArgs{
-		RawDataSubTaskArgs: scopeRawArgs(taskCtx, data, RAW_ISSUES_TABLE),
+		RawDataSubTaskArgs: scopeRawArgs(withCountedTotal(taskCtx, issueScope...), data, RAW_ISSUES_TABLE),
 		InputRowType:       reflect.TypeOf(models.RedmineGoIssue{}),
 		Input:              issues,
 		Convert: func(inputRow interface{}) ([]interface{}, errors.Error) {
