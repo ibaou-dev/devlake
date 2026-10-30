@@ -54,6 +54,7 @@ import (
 	opsgenie "github.com/apache/devlake/plugins/opsgenie/impl"
 	org "github.com/apache/devlake/plugins/org/impl"
 	pagerduty "github.com/apache/devlake/plugins/pagerduty/impl"
+	redmineGo "github.com/apache/devlake/plugins/redmine_go/impl"
 	refdiff "github.com/apache/devlake/plugins/refdiff/impl"
 	rootly "github.com/apache/devlake/plugins/rootly/impl"
 	slack "github.com/apache/devlake/plugins/slack/impl"
@@ -98,6 +99,7 @@ func Test_GetPluginTablesInfo(t *testing.T) {
 	checker.FeedIn("linear/models", linear.Linear{}.GetTablesInfo)
 	checker.FeedIn("org", org.Org{}.GetTablesInfo)
 	checker.FeedIn("pagerduty/models", pagerduty.PagerDuty{}.GetTablesInfo)
+	checker.FeedIn("redmine_go/models", redmineGo.RedmineGo{}.GetTablesInfo)
 	checker.FeedIn("refdiff/models", refdiff.RefDiff{}.GetTablesInfo)
 	checker.FeedIn("rootly/models", rootly.Rootly{}.GetTablesInfo)
 	checker.FeedIn("slack/models", slack.Slack{}.GetTablesInfo)
