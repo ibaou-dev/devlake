@@ -30,6 +30,10 @@ export interface IPluginConfig {
     // the plugin's test API (e.g. the authenticated login, soft warnings)
     // instead of the generic toast
     showTestResultMessage?: boolean;
+    // when set, a successful Test Connection shows what this returns for the
+    // test API's response, as a toast of the given level, instead of the
+    // generic one
+    formatTestResult?: (res: any) => { level: 'success' | 'warning'; content: React.ReactNode };
   };
   dataScope: {
     localSearch?: boolean;
