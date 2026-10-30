@@ -874,3 +874,36 @@ func TestStatusIsClosed(t *testing.T) {
 	assert.True(t, m.StatusIsClosed(99, true), "unknown status uses the fallback")
 	assert.False(t, m.StatusIsClosed(99, false), "unknown status uses the fallback")
 }
+
+func TestUnresolvedFields(t *testing.T) {
+	inst := Instance{Fields: []FieldInfo{{ID: 21, Name: "Env"}, {ID: 22, Name: "Severity"}}}
+	cond := func(r models.Ref) *models.Condition {
+		return &models.Condition{Field: r, Op: models.ConditionIn, Values: []models.Value{{Value: "x"}}}
+	}
+	tr := &models.Transformation{
+		TypeRules: []models.TypeRule{
+			{Tracker: refPtr(1, "Bug"), When: cond(ref(21, "Env")), Type: ticket.INCIDENT}, // known id
+			{When: cond(ref(90, " severity ")), Type: ticket.INCIDENT},                     // unknown id, name matches
+			{When: cond(ref(91, "Gone")), Type: ticket.INCIDENT},                           // unresolvable
+			{When: cond(ref(91, "Gone")), Type: ticket.BUG},                                // same field again
+			{Tracker: refPtr(5, "No condition"), Type: ticket.TASK},                        // no field to resolve
+		},
+		Severity:    []models.ValueMapField{{Field: ref(92, "Sev")}, {Field: ref(22, "Renamed")}},
+		Environment: []models.ValueMapField{{Field: ref(93, "")}},
+		Component:   &models.ComponentMapping{Source: models.ComponentSourceCustomField, Field: refPtr(94, "Comp")},
+	}
+	want := []models.Ref{ref(91, "Gone"), ref(92, "Sev"), ref(93, ""), ref(94, "Comp")}
+	assert.Equal(t, want, NewMapper(tr, inst).UnresolvedFields())
+
+	t.Run("component other than customField is not checked", func(t *testing.T) {
+		tr := &models.Transformation{Component: &models.ComponentMapping{Source: models.ComponentSourceCategory, Field: refPtr(94, "Comp")}}
+		assert.Empty(t, NewMapper(tr, inst).UnresolvedFields())
+	})
+	t.Run("no transformation", func(t *testing.T) {
+		assert.Empty(t, NewMapper(nil, Instance{}).UnresolvedFields())
+	})
+	t.Run("an instance without field metadata resolves nothing", func(t *testing.T) {
+		got := NewMapper(tr, Instance{}).UnresolvedFields()
+		assert.Len(t, got, 7, "every distinct configured field is unresolved")
+	})
+}

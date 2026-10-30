@@ -22,6 +22,7 @@ import (
 
 	"github.com/apache/devlake/core/dal"
 	"github.com/apache/devlake/core/errors"
+	"github.com/apache/devlake/core/log"
 	"github.com/apache/devlake/plugins/redmine_go/mapping"
 	"github.com/apache/devlake/plugins/redmine_go/models"
 )
@@ -73,6 +74,16 @@ func loadMappingInstance(db dal.Dal, connectionId uint64) (mapping.Instance, err
 		instance.Fields = append(instance.Fields, field)
 	}
 	return instance, nil
+}
+
+// warnUnresolvedFields logs one warning for each configured custom field the
+// instance cannot resolve. It runs once where the mapper is prepared, not per
+// issue, so a misconfigured field costs one line per run.
+func warnUnresolvedFields(logger log.Logger, scopeConfig *models.RedmineGoScopeConfig, mapper *mapping.Mapper) {
+	for _, field := range mapper.UnresolvedFields() {
+		logger.Warn(nil, "scope config %q (id %d): custom field %q (id %d) is unknown to the Redmine metadata and to the fields seen on collected issues, so its mapping has no effect",
+			scopeConfig.Name, scopeConfig.ID, field.Name, field.ID)
+	}
 }
 
 // mappingIssue converts a tool issue to the mapping input. A custom_fields
