@@ -45,6 +45,17 @@ func TestTablesInfoNamesEveryTableWithThePluginPrefix(t *testing.T) {
 		"_tool_redmine_go_connections",
 		"_tool_redmine_go_projects",
 		"_tool_redmine_go_scope_configs",
+		"_tool_redmine_go_trackers",
+		"_tool_redmine_go_statuses",
+		"_tool_redmine_go_priorities",
+		"_tool_redmine_go_custom_fields",
+		"_tool_redmine_go_versions",
+		"_tool_redmine_go_issue_categories",
+		"_tool_redmine_go_accounts",
+		"_tool_redmine_go_observed_fields",
+		"_tool_redmine_go_issues",
+		"_tool_redmine_go_journals",
+		"_tool_redmine_go_journal_details",
 	}, names)
 }
 

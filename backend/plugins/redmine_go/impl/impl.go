@@ -89,20 +89,48 @@ func (p RedmineGo) MigrationScripts() []plugin.MigrationScript {
 	return migrationscripts.All()
 }
 
-// GetTablesInfo lists every tool-layer table of the plugin. The init migration
-// consumes the archived snapshots in exactly this order.
+// GetTablesInfo lists every tool-layer table of the plugin.
 func (p RedmineGo) GetTablesInfo() []dal.Tabler {
 	return []dal.Tabler{
 		&models.RedmineGoConnection{},
 		&models.RedmineGoProject{},
 		&models.RedmineGoScopeConfig{},
+		&models.RedmineGoTracker{},
+		&models.RedmineGoStatus{},
+		&models.RedmineGoPriority{},
+		&models.RedmineGoCustomField{},
+		&models.RedmineGoVersion{},
+		&models.RedmineGoIssueCategory{},
+		&models.RedmineGoAccount{},
+		&models.RedmineGoObservedField{},
+		&models.RedmineGoIssue{},
+		&models.RedmineGoJournal{},
+		&models.RedmineGoJournalDetail{},
 	}
 }
 
-// SubTaskMetas declares every subtask in execution order. The list's order is
-// the contract: no Dependencies fields anywhere in the plugin.
+// SubTaskMetas declares every subtask in execution order: metadata, then
+// issues and their journals. The list's order is the contract: no
+// Dependencies fields anywhere in the plugin.
 func (p RedmineGo) SubTaskMetas() []plugin.SubTaskMeta {
-	return []plugin.SubTaskMeta{}
+	return []plugin.SubTaskMeta{
+		tasks.CollectTrackersMeta,
+		tasks.ExtractTrackersMeta,
+		tasks.CollectStatusesMeta,
+		tasks.ExtractStatusesMeta,
+		tasks.CollectPrioritiesMeta,
+		tasks.ExtractPrioritiesMeta,
+		tasks.CollectCustomFieldsMeta,
+		tasks.ExtractCustomFieldsMeta,
+		tasks.CollectVersionsMeta,
+		tasks.ExtractVersionsMeta,
+		tasks.CollectIssueCategoriesMeta,
+		tasks.ExtractIssueCategoriesMeta,
+		tasks.CollectIssuesMeta,
+		tasks.ExtractIssuesMeta,
+		tasks.CollectIssueDetailsMeta,
+		tasks.ExtractIssueJournalsMeta,
+	}
 }
 
 // PrepareTaskData loads the connection, scope and scope config of a task and
