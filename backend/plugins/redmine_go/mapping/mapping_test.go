@@ -661,72 +661,99 @@ func TestTypeRuleOrderAndShape(t *testing.T) {
 func TestResolutionDate(t *testing.T) {
 	inst := Instance{Statuses: []models.StatusInfo{
 		status(1, "New", false), status(2, "In Progress", false), status(5, "Closed", true), status(6, "Rejected", true),
+		status(13, "Verified", false), status(17, "On Hold", false),
 	}}
-	m := NewMapper(nil, inst)
+	verifiedIsDone := &models.Transformation{StatusMappings: []models.StatusMapping{
+		{Status: ref(13, "Verified"), Std: ticket.DONE},
+		{Status: ref(17, "On Hold"), Std: ticket.OTHER},
+	}}
+	closedIsOther := &models.Transformation{StatusMappings: []models.StatusMapping{{Status: ref(5, "Closed"), Std: ticket.OTHER}}}
+	at := func(from, to int) StatusChange {
+		return StatusChange{FromStatusID: from, ToStatusID: to}
+	}
+	change := func(h int, from, to int) StatusChange {
+		c := at(from, to)
+		c.At = hour(h)
+		return c
+	}
 	cases := []struct {
 		name     string
+		mapping  *models.Transformation
+		statusID int
 		closedOn *time.Time
-		closed   bool
 		changes  []StatusChange
 		want     *time.Time
 	}{
 		{
-			name: "closed_on wins", closedOn: hourPtr(9), closed: true,
-			changes: []StatusChange{{At: hour(3), ToStatusID: 5}}, want: hourPtr(9),
+			name: "the change into the closed status", statusID: 5,
+			changes: []StatusChange{change(1, 1, 2), change(3, 2, 5)}, want: hourPtr(3),
 		},
 		{
-			name: "closed_on wins even when the status is not closed", closedOn: hourPtr(9), closed: false,
-			want: hourPtr(9),
+			name: "the history wins over closed_on", statusID: 5, closedOn: hourPtr(9),
+			changes: []StatusChange{change(3, 1, 5)}, want: hourPtr(3),
 		},
 		{
-			name:   "null closed_on takes the last transition into a closed status, unsorted",
-			closed: true,
-			changes: []StatusChange{
-				{At: hour(4), ToStatusID: 5},
-				{At: hour(2), ToStatusID: 2},
-				{At: hour(6), ToStatusID: 6},
-				{At: hour(1), ToStatusID: 1},
-			},
-			want: hourPtr(6),
+			name: "a reopened and closed again issue resolves at its latest closing", statusID: 5,
+			changes: []StatusChange{change(2, 1, 5), change(3, 5, 2), change(6, 2, 5)}, want: hourPtr(6),
 		},
 		{
-			name: "a later transition to a non-closed status is ignored", closed: true,
-			changes: []StatusChange{
-				{At: hour(3), ToStatusID: 2},
-				{At: hour(1), ToStatusID: 5},
-				{At: hour(2), ToStatusID: 6},
-			},
-			want: hourPtr(2),
+			name: "unsorted changes", statusID: 5,
+			changes: []StatusChange{change(6, 2, 5), change(2, 1, 5), change(3, 5, 2)}, want: hourPtr(6),
 		},
 		{
-			name: "the last closed transition need not be the last change", closed: true,
-			changes: []StatusChange{
-				{At: hour(5), ToStatusID: 1},
-				{At: hour(3), ToStatusID: 5},
-				{At: hour(4), ToStatusID: 2},
-			},
-			want: hourPtr(3),
+			name: "a move between two DONE statuses keeps the run's start", statusID: 6,
+			changes: []StatusChange{change(1, 1, 2), change(2, 2, 5), change(4, 5, 6)}, want: hourPtr(2),
 		},
 		{
-			name: "status not closed yields nil", closed: false,
-			changes: []StatusChange{{At: hour(1), ToStatusID: 5}},
-			want:    nil,
+			name: "an open status mapped to DONE resolves, with no closed_on", mapping: verifiedIsDone, statusID: 13,
+			changes: []StatusChange{change(1, 1, 2), change(5, 2, 13)}, want: hourPtr(5),
 		},
 		{
-			name: "closed but no closed transition yields nil", closed: true,
-			changes: []StatusChange{{At: hour(1), ToStatusID: 1}, {At: hour(2), ToStatusID: 2}},
-			want:    nil,
+			name: "a DONE run through an open DONE status and a closed one", mapping: verifiedIsDone, statusID: 5,
+			changes: []StatusChange{change(1, 1, 2), change(3, 2, 13), change(4, 13, 5)}, want: hourPtr(3),
 		},
 		{
-			name: "a transition into a status unknown to the instance does not count", closed: true,
-			changes: []StatusChange{{At: hour(1), ToStatusID: 99}},
-			want:    nil,
+			name: "an open status mapped to DONE that is left again has no resolution", mapping: verifiedIsDone, statusID: 2,
+			closedOn: hourPtr(9),
+			changes:  []StatusChange{change(3, 1, 13), change(4, 13, 2)},
 		},
-		{name: "closed without any change yields nil", closed: true, want: nil},
+		{
+			name: "a waiting status between two DONE statuses interrupts the run", mapping: verifiedIsDone, statusID: 5,
+			changes: []StatusChange{change(1, 1, 13), change(2, 13, 17), change(5, 17, 5)}, want: hourPtr(5),
+		},
+		{
+			name: "a closed status mapped away from DONE has no resolution", mapping: closedIsOther, statusID: 5,
+			closedOn: hourPtr(9), changes: []StatusChange{change(3, 1, 5)},
+		},
+		{name: "an open issue has no resolution even with a stale closed_on", statusID: 2, closedOn: hourPtr(9)},
+		{name: "no history falls back to closed_on", statusID: 5, closedOn: hourPtr(9), want: hourPtr(9)},
+		{name: "no history and no closed_on yields nil", statusID: 5},
+		{
+			name: "an issue created in a DONE status falls back to closed_on", statusID: 6, closedOn: hourPtr(1),
+			changes: []StatusChange{change(4, 5, 6)}, want: hourPtr(1),
+		},
+		{
+			name: "an issue created in a DONE status without closed_on yields nil", statusID: 6,
+			changes: []StatusChange{change(4, 5, 6)},
+		},
+		{
+			name: "a history that does not end in the current status falls back to closed_on", statusID: 5,
+			closedOn: hourPtr(8), changes: []StatusChange{change(2, 1, 5), change(3, 5, 2)}, want: hourPtr(8),
+		},
+		{
+			name: "a gap in the journals falls back to closed_on", statusID: 6, closedOn: hourPtr(8),
+			changes: []StatusChange{change(1, 1, 2), change(4, 5, 6)}, want: hourPtr(8),
+		},
+		{
+			name: "a status unknown to the instance and not flagged closed is not DONE", statusID: 99,
+			changes: []StatusChange{{At: hour(2), FromStatusID: 1, ToStatusID: 99}}, want: nil,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := m.ResolutionDate(tc.closedOn, tc.closed, tc.changes)
+			m := NewMapper(tc.mapping, inst)
+			issue := &Issue{StatusID: tc.statusID, StatusName: "x"}
+			got := m.ResolutionDate(issue, tc.closedOn, tc.changes)
 			if tc.want == nil {
 				assert.Nil(t, got)
 				return
@@ -737,13 +764,27 @@ func TestResolutionDate(t *testing.T) {
 	}
 }
 
-func TestResolutionDateDoesNotAliasChanges(t *testing.T) {
-	m := NewMapper(nil, Instance{Statuses: []models.StatusInfo{status(5, "Closed", true)}})
-	changes := []StatusChange{{At: hour(3), ToStatusID: 5}}
-	got := m.ResolutionDate(nil, true, changes)
+func TestResolutionDateUsesTheIssuesClosedFlagForAnUnknownStatus(t *testing.T) {
+	m := NewMapper(nil, Instance{})
+	changes := []StatusChange{{At: hour(2), FromStatusID: 1, ToStatusID: 99, ToStatusName: "Gone"}}
+	got := m.ResolutionDate(&Issue{StatusID: 99, StatusName: "Gone", StatusIsClosed: true}, nil, changes)
+	assert.Nil(t, got, "the change's own side carries no flag, so an unknown status never opens a DONE run")
+	assert.Nil(t, m.ResolutionDate(&Issue{StatusID: 99, StatusName: "Gone"}, hourPtr(3), changes), "an unknown open status is not DONE")
+}
+
+func TestResolutionDateDoesNotAliasInputs(t *testing.T) {
+	m := NewMapper(nil, Instance{Statuses: []models.StatusInfo{status(1, "New", false), status(5, "Closed", true)}})
+	changes := []StatusChange{{At: hour(3), FromStatusID: 1, ToStatusID: 5}}
+	got := m.ResolutionDate(&Issue{StatusID: 5}, nil, changes)
 	require.NotNil(t, got)
 	*got = hour(20)
 	assert.Equal(t, hour(3), changes[0].At)
+
+	closedOn := hour(7)
+	got = m.ResolutionDate(&Issue{StatusID: 5}, &closedOn, nil)
+	require.NotNil(t, got)
+	*got = hour(20)
+	assert.Equal(t, hour(7), closedOn)
 }
 
 func TestLeadTimeMinutes(t *testing.T) {
