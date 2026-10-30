@@ -98,8 +98,16 @@ var testSubtaskToggles = map[string]models.Toggle{
 
 func plannedSubtasks(t *testing.T, config *models.RedmineGoScopeConfig) []string {
 	t.Helper()
+	return plannedSubtasksWithEnv(t, config, noEnv)
+}
+
+// noEnv is an environment with no REDMINE_GO_* flag set.
+func noEnv(string) string { return "" }
+
+func plannedSubtasksWithEnv(t *testing.T, config *models.RedmineGoScopeConfig, getenv func(string) string) []string {
+	t.Helper()
 	plan, err := makePipelinePlanV200(
-		testSubtaskMetas, testSubtaskToggles,
+		testSubtaskMetas, testSubtaskToggles, getenv,
 		[]*scopeDetail{newScopeDetail(6, 42, config)},
 		testConnectionModel(),
 	)
@@ -111,7 +119,7 @@ func plannedSubtasks(t *testing.T, config *models.RedmineGoScopeConfig) []string
 
 func TestMakePipelinePlanV200ThreadsScopeParamsIntoTaskOptions(t *testing.T) {
 	plan, err := makePipelinePlanV200(
-		testSubtaskMetas, testSubtaskToggles,
+		testSubtaskMetas, testSubtaskToggles, noEnv,
 		[]*scopeDetail{newScopeDetail(6, 42, newScopeConfig(plugin.DOMAIN_TYPE_TICKET))},
 		testConnectionModel(),
 	)
@@ -126,7 +134,7 @@ func TestMakePipelinePlanV200ThreadsScopeParamsIntoTaskOptions(t *testing.T) {
 
 func TestMakePipelinePlanV200OneStagePerProject(t *testing.T) {
 	plan, err := makePipelinePlanV200(
-		testSubtaskMetas, testSubtaskToggles,
+		testSubtaskMetas, testSubtaskToggles, noEnv,
 		[]*scopeDetail{
 			newScopeDetail(6, 0, newScopeConfig(plugin.DOMAIN_TYPE_TICKET)),
 			newScopeDetail(7, 0, newScopeConfig(plugin.DOMAIN_TYPE_TICKET)),
@@ -169,5 +177,37 @@ func TestMakePipelinePlanV200FiltersSubtasksByToggles(t *testing.T) {
 		config := newScopeConfig(plugin.DOMAIN_TYPE_TICKET, plugin.DOMAIN_TYPE_CROSS)
 		config.CollectTimeEntries, config.VersionsAsSprints = &off, &off
 		assert.Equal(t, []string{"collectIssues", "convertAccounts"}, plannedSubtasks(t, config))
+	})
+}
+
+func TestMakePipelinePlanV200EnvFlagsForceTogglesOffNeverOn(t *testing.T) {
+	off, on := false, true
+	env := func(values map[string]string) func(string) string {
+		return func(name string) string { return values[name] }
+	}
+	t.Run("a flag set to false removes a subtask the scope config enables", func(t *testing.T) {
+		config := newScopeConfig(plugin.DOMAIN_TYPE_TICKET)
+		config.CollectTimeEntries = &on
+		assert.Equal(t, []string{"collectIssues"},
+			plannedSubtasksWithEnv(t, config, env(map[string]string{"REDMINE_GO_COLLECT_TIME_ENTRIES": "false"})))
+	})
+	t.Run("a flag set to false overrides a scope config that never mentions the toggle", func(t *testing.T) {
+		assert.Equal(t, []string{"collectIssues"},
+			plannedSubtasksWithEnv(t, newScopeConfig(plugin.DOMAIN_TYPE_TICKET), env(map[string]string{"REDMINE_GO_COLLECT_TIME_ENTRIES": "false"})))
+	})
+	t.Run("a flag set to true never enables what the scope config left off", func(t *testing.T) {
+		config := newScopeConfig(plugin.DOMAIN_TYPE_TICKET)
+		config.VersionsAsSprints = &off
+		assert.Equal(t, []string{"collectIssues", "collectTimeEntries"},
+			plannedSubtasksWithEnv(t, config, env(map[string]string{"REDMINE_GO_VERSIONS_AS_SPRINTS": "true"})))
+		assert.Equal(t, []string{"collectIssues", "collectTimeEntries"},
+			plannedSubtasksWithEnv(t, newScopeConfig(plugin.DOMAIN_TYPE_TICKET), env(map[string]string{"REDMINE_GO_VERSIONS_AS_SPRINTS": "true"})),
+			"a default-off toggle stays off")
+	})
+	t.Run("the planner leaves the stored scope config untouched", func(t *testing.T) {
+		config := newScopeConfig(plugin.DOMAIN_TYPE_TICKET)
+		config.CollectTimeEntries = &on
+		plannedSubtasksWithEnv(t, config, env(map[string]string{"REDMINE_GO_COLLECT_TIME_ENTRIES": "false"}))
+		assert.True(t, *config.CollectTimeEntries)
 	})
 }
