@@ -1,0 +1,11 @@
+connection_id,id,name,customized_type,field_format,multiple,possible_values,trackers
+1,1,Rejection reason,issue,list,0,"[{""value"":""Not fixed"",""label"":""Not fixed""},{""value"":""Partially fixed"",""label"":""Partially fixed""},{""value"":""Regression"",""label"":""Regression""},{""value"":""Cannot verify (environment)"",""label"":""Cannot verify (environment)""},{""value"":""Not deployed yet"",""label"":""Not deployed yet""},{""value"":""Question"",""label"":""Question""},{""value"":""New requirement"",""label"":""New requirement""}]","[{""id"":1,""name"":""Bug""},{""id"":2,""name"":""Feature""},{""id"":3,""name"":""Support""}]"
+1,3,Invoiced effort (h),issue,float,0,,"[{""id"":2,""name"":""Feature""}]"
+1,4,Deployed in TESTING,issue,string,0,,"[{""id"":1,""name"":""Bug""},{""id"":2,""name"":""Feature""},{""id"":3,""name"":""Support""}]"
+1,5,Deployed in PRODUCTION,issue,string,0,,"[{""id"":1,""name"":""Bug""},{""id"":2,""name"":""Feature""},{""id"":3,""name"":""Support""}]"
+1,12,RGO Severity,issue,enumeration,0,"[{""value"":""7"",""label"":""Minor""},{""value"":""8"",""label"":""Major""},{""value"":""9"",""label"":""Critical""}]","[{""id"":5,""name"":""RGO Fixture""}]"
+1,13,RGO Environment,issue,enumeration,1,"[{""value"":""10"",""label"":""Dev""},{""value"":""11"",""label"":""Test""},{""value"":""12"",""label"":""Prod""}]","[{""id"":5,""name"":""RGO Fixture""}]"
+1,14,RGO Components,issue,list,1,"[{""value"":""API"",""label"":""API""},{""value"":""UI"",""label"":""UI""},{""value"":""Reports"",""label"":""Reports""},{""value"":""Batch"",""label"":""Batch""}]","[{""id"":5,""name"":""RGO Fixture""}]"
+1,15,RGO Reviewer,issue,user,0,,"[{""id"":5,""name"":""RGO Fixture""}]"
+1,16,RGO Target release,issue,version,0,,"[{""id"":5,""name"":""RGO Fixture""}]"
+1,17,RGO Regulated,issue,bool,0,"[{""value"":""1"",""label"":""Yes""},{""value"":""0"",""label"":""No""}]","[{""id"":5,""name"":""RGO Fixture""}]"

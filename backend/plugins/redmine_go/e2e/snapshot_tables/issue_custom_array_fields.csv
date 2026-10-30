@@ -1,0 +1,3 @@
+issue_id,field_id,field_value
+redmine_go:RedmineGoIssue:1:174,environment_class,PRODUCTION
+redmine_go:RedmineGoIssue:1:174,environment_class,TESTING

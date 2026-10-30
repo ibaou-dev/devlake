@@ -1,0 +1,10 @@
+id,params,data,url,input,created_at
+1,"{""ConnectionId"":1}","{""id"":1,""name"":""New"",""is_closed"":false,""description"":null}",https://redmine.example.org/issue_statuses.json,null,2026-10-30T12:00:00.000+00:00
+2,"{""ConnectionId"":1}","{""id"":2,""name"":""In Progress"",""is_closed"":false,""description"":null}",https://redmine.example.org/issue_statuses.json,null,2026-10-30T12:00:00.000+00:00
+3,"{""ConnectionId"":1}","{""id"":3,""name"":""Resolved"",""is_closed"":false,""description"":null}",https://redmine.example.org/issue_statuses.json,null,2026-10-30T12:00:00.000+00:00
+4,"{""ConnectionId"":1}","{""id"":4,""name"":""Feedback"",""is_closed"":false,""description"":null}",https://redmine.example.org/issue_statuses.json,null,2026-10-30T12:00:00.000+00:00
+5,"{""ConnectionId"":1}","{""id"":5,""name"":""Closed"",""is_closed"":true,""description"":null}",https://redmine.example.org/issue_statuses.json,null,2026-10-30T12:00:00.000+00:00
+6,"{""ConnectionId"":1}","{""id"":6,""name"":""Rejected"",""is_closed"":true,""description"":null}",https://redmine.example.org/issue_statuses.json,null,2026-10-30T12:00:00.000+00:00
+7,"{""ConnectionId"":1}","{""id"":7,""name"":""Awaiting client"",""is_closed"":false,""description"":null}",https://redmine.example.org/issue_statuses.json,null,2026-10-30T12:00:00.000+00:00
+8,"{""ConnectionId"":1}","{""id"":8,""name"":""Rejected by QA"",""is_closed"":false,""description"":null}",https://redmine.example.org/issue_statuses.json,null,2026-10-30T12:00:00.000+00:00
+9,"{""ConnectionId"":1}","{""id"":10,""name"":""Archived (rgo)"",""is_closed"":true,""description"":null}",https://redmine.example.org/issue_statuses.json,null,2026-10-30T12:00:00.000+00:00
