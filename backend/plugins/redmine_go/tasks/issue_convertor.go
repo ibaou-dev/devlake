@@ -135,7 +135,7 @@ func ConvertIssues(taskCtx plugin.SubTaskContext) errors.Error {
 					return nil, err
 				}
 			}
-			resolution := mapper.ResolutionDate(input, issue.RedmineClosedOn, changes)
+			resolution := mapper.ResolutionDate(input, issue.RedmineCreatedOn, issue.RedmineClosedOn, changes)
 
 			created, updated := issue.RedmineCreatedOn, issue.RedmineUpdatedOn
 			domainIssue := &ticket.Issue{
