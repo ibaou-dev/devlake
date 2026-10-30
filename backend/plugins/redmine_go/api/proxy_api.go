@@ -18,14 +18,23 @@ limitations under the License.
 package api
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"path"
 	"regexp"
 	"strings"
 
 	"github.com/apache/devlake/core/errors"
 	"github.com/apache/devlake/core/plugin"
+	helper "github.com/apache/devlake/helpers/pluginhelper/api"
 )
+
+// maxProxyResponseBytes bounds how much of a metadata answer is read. Custom
+// field lists with many possible values are the largest answers.
+const maxProxyResponseBytes = 32 << 20
 
 // proxyAllowlist holds the Redmine paths the config UI may read through the
 // proxy: the metadata that fills the mapping forms. Anything else is refused.
@@ -81,6 +90,47 @@ func Proxy(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, errors.Er
 			"the proxy only forwards Redmine metadata paths (projects, trackers, issue_statuses, enumerations, custom_fields, versions, issue_categories); %q is not allowed",
 			requestPath))
 	}
-	input.Params["path"] = requestPath
-	return raProxy.Proxy(input)
+	connection, err := dsHelper.ConnApi.FindByPk(input)
+	if err != nil {
+		return nil, err
+	}
+	apiClient, err := helper.NewApiClientFromConnection(context.TODO(), basicRes, connection)
+	if err != nil {
+		return nil, transportError(requestPath, err)
+	}
+	res, err := apiClient.Get(requestPath, input.Query, nil)
+	if err != nil {
+		return nil, transportError(requestPath, err)
+	}
+	defer res.Body.Close()
+	return forwardMetadata(requestPath, res)
+}
+
+// forwardMetadata turns Redmine's answer to a metadata request into the proxy
+// response. Anything but a 200 with a JSON body becomes a 400 that says what
+// to check, instead of surfacing a JSON decoding error from an empty 403 body
+// (what Redmine sends to a non-administrator key and to a disabled REST web
+// service). Only `x-` response headers pass through, such as paging hints.
+func forwardMetadata(requestPath string, res *http.Response) (*plugin.ApiResourceOutput, errors.Error) {
+	if res.StatusCode != http.StatusOK {
+		return nil, statusError(requestPath, res.StatusCode)
+	}
+	body, readErr := io.ReadAll(io.LimitReader(res.Body, maxProxyResponseBytes))
+	if readErr != nil {
+		return nil, errors.Default.Wrap(readErr, fmt.Sprintf("error reading the Redmine %s response", requestPath))
+	}
+	if !json.Valid(body) {
+		return nil, errors.HttpStatus(http.StatusBadRequest).New(fmt.Sprintf(
+			"the Redmine server did not answer %s with JSON: the endpoint is probably not the Redmine root URL", requestPath))
+	}
+	headers := http.Header{}
+	for name, values := range res.Header {
+		if !strings.HasPrefix(strings.ToLower(name), "x-") {
+			continue
+		}
+		for _, value := range values {
+			headers.Add(name, value)
+		}
+	}
+	return &plugin.ApiResourceOutput{Status: res.StatusCode, Body: json.RawMessage(body), Header: headers}, nil
 }

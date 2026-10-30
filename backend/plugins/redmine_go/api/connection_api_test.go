@@ -211,6 +211,24 @@ func TestTestConnection(t *testing.T) {
 		assert.Contains(t, err.Error(), "unexpected status code 418")
 	})
 
+	t.Run("connection refused", func(t *testing.T) {
+		fake := newFakeRedmine(t, "")
+		endpoint := fake.server.URL
+		fake.server.Close()
+		_, err := testConnection(context.TODO(), testConn(endpoint, "k"))
+		require.NotNil(t, err)
+		assert.Equal(t, http.StatusBadRequest, err.GetType().GetHttpCode())
+		assert.Contains(t, err.Error(), "cannot reach Redmine at "+endpoint+": the connection was refused")
+		assert.NotContains(t, err.Error(), "Wraps", "the error chain stays out of the message")
+	})
+
+	t.Run("host name does not resolve", func(t *testing.T) {
+		_, err := testConnection(context.TODO(), testConn("http://nowhere.invalid:3000", "k"))
+		require.NotNil(t, err)
+		assert.Contains(t, err.Error(), "the host name does not resolve")
+		assert.NotContains(t, err.Error(), "Wraps")
+	})
+
 	t.Run("bad URL", func(t *testing.T) {
 		_, err := testConnection(context.TODO(), testConn("ftp://redmine.example.org", "k"))
 		require.NotNil(t, err)
