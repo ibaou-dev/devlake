@@ -36,6 +36,10 @@ export type RedmineOptions = {
   // non-administrator key gets (403): the custom-field lists then come from
   // collected data only
   customFieldsFromCollectedData: boolean;
+  // true when none of the live reads worked, which points at an unreachable
+  // Redmine or a disabled REST web service rather than at a non-administrator
+  // key: a non-admin key still reads trackers and statuses
+  redmineUnreadable: boolean;
   // true when the connection has no collected custom field yet, so a
   // non-admin key has nothing to offer until the first collection ran
   nothingCollected: boolean;
@@ -83,6 +87,7 @@ export const loadRedmineOptions = async (prefix: string, connectionId: ID): Prom
     statuses: mergeStatuses(statuses.ok ? statuses.value : null, seen.statuses),
     customFields: mergeCustomFields(customFields.ok ? customFields.value : null, seen.customFields),
     customFieldsFromCollectedData: !customFields.ok,
+    redmineUnreadable: !trackers.ok && !statuses.ok && !customFields.ok,
     nothingCollected: !customFields.ok && seen.customFields.length === 0,
     liveErrors,
   };

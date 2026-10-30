@@ -33,7 +33,8 @@ export const RedmineGoConfig: IPluginConfig = {
   icon: ({ color }) => <Icon fill={color} />,
   sort: 19.6,
   connection: {
-    docLink: 'https://www.redmine.org/projects/redmine/wiki/Rest_api',
+    // the plugin's own page on the DevLake website (docs/Plugins/redmine_go.md in the website repo)
+    docLink: 'https://devlake.apache.org/docs/Plugins/redmine_go',
     initialValues: {
       rateLimitPerHour: DEFAULT_RATE_LIMIT,
     },

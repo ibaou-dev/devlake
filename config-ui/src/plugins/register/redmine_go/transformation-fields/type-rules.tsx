@@ -253,7 +253,7 @@ export const TypeRulesEditor = ({
           style={{ marginTop: 12 }}
           type="warning"
           showIcon
-          title="No custom fields to build a condition on: this key cannot read them and nothing has been collected yet."
+          title="No custom fields to build a condition on: they could not be read from Redmine and nothing has been collected yet."
         />
       )}
       <div style={{ marginTop: 16 }} data-testid="type-fallback-preview">

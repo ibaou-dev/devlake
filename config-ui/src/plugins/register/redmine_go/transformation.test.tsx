@@ -301,6 +301,7 @@ describe('RedmineGoTransformation', () => {
 
     expect(await screen.findByText('Custom-field lists come from collected data')).toBeDefined();
     expect(screen.getByText(/not a Redmine administrator/)).toBeDefined();
+    expect(screen.queryByText('Redmine could not be read')).toBeNull();
     expect(screen.queryByText(/nothing has been collected yet/)).toBeNull();
 
     // the observed field is offered, and mapping still works
@@ -347,6 +348,9 @@ describe('RedmineGoTransformation', () => {
 
     expect(await screen.findByText(/Trackers could not be loaded from Redmine/)).toBeDefined();
     expect(screen.getByText(/Statuses could not be loaded from Redmine/)).toBeDefined();
+    // an unreachable Redmine is not blamed on a non-administrator key
+    expect(screen.getByText('Redmine could not be read')).toBeDefined();
+    expect(screen.queryByText(/not a Redmine administrator/)).toBeNull();
     expect(latest.typeRules).toEqual([{ tracker: { id: 1, name: 'Bug' }, type: 'BUG' }]);
     expect(latest.statusMappings).toEqual([{ status: { id: 5, name: 'Closed' }, std: 'DONE' }]);
   });

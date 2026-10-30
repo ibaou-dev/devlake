@@ -86,6 +86,7 @@ describe('loadRedmineOptions', () => {
 
     expect(options.customFieldsFromCollectedData).toBe(true);
     expect(options.nothingCollected).toBe(false);
+    expect(options.redmineUnreadable).toBe(false);
     expect(options.customFields).toMatchObject([{ id: 43, name: 'Ticket Severity', source: 'observed' }]);
     expect(options.trackers).toHaveLength(3);
   });
@@ -111,6 +112,7 @@ describe('loadRedmineOptions', () => {
 
     expect(options.trackers.map((t) => t.source)).toEqual(['observed']);
     expect(options.statuses.map((s) => s.source)).toEqual(['observed']);
+    expect(options.redmineUnreadable).toBe(true);
     expect(options.liveErrors).toEqual([
       'Trackers could not be loaded from Redmine: connect ECONNREFUSED',
       'Statuses could not be loaded from Redmine: bad gateway',

@@ -104,7 +104,16 @@ export const RedmineGoTransformation = ({
       {data.liveErrors.map((error) => (
         <Alert key={error} style={{ marginBottom: 16 }} type="error" showIcon title={error} />
       ))}
-      {customFieldsFromCollectedData && (
+      {customFieldsFromCollectedData && data.redmineUnreadable && (
+        <Alert
+          style={{ marginBottom: 16 }}
+          type="warning"
+          showIcon
+          title="Redmine could not be read"
+          description="Trackers, statuses and custom fields below are the ones seen in collected data. Check the connection, and that the REST web service is enabled under Administration → Settings → API, then reopen this form."
+        />
+      )}
+      {customFieldsFromCollectedData && !data.redmineUnreadable && (
         <Alert
           style={{ marginBottom: 16 }}
           type="info"
