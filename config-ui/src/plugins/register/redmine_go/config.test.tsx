@@ -43,6 +43,10 @@ describe('redmine_go plugin registration', () => {
     expect(fields.find((field) => field.key === 'token').label).toBe('API Key');
   });
 
+  it('links the connection form to the plugin page of the DevLake website', () => {
+    expect(RedmineGoConfig.connection.docLink).toBe('https://devlake.apache.org/docs/Plugins/redmine_go');
+  });
+
   it('browses projects as a searchable miller-column tree', () => {
     expect(RedmineGoConfig.dataScope.localSearch).toBeUndefined();
     expect(RedmineGoConfig.dataScope.millerColumn?.columnCount).toBeGreaterThan(1);

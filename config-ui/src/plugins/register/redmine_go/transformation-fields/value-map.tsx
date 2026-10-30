@@ -249,7 +249,7 @@ export const ValueMapEditor = ({
           <Alert
             type="warning"
             showIcon
-            title="No custom fields to choose from: this key cannot read them and nothing has been collected yet."
+            title="No custom fields to choose from: they could not be read from Redmine and nothing has been collected yet."
           />
         )}
       </Flex>
