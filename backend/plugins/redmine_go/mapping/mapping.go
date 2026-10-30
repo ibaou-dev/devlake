@@ -22,10 +22,12 @@ package mapping
 import (
 	"bytes"
 	"encoding/json"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/apache/devlake/core/models/domainlayer/ticket"
 	"github.com/apache/devlake/plugins/redmine_go/models"
 )
 
@@ -62,10 +64,14 @@ type Issue struct {
 	Fields         []FieldValues
 }
 
-// StatusChange is one transition of an issue into a status.
+// StatusChange is one status transition of an issue. The names are only used
+// to match a status the instance does not know by id.
 type StatusChange struct {
-	At         time.Time
-	ToStatusID int
+	At             time.Time
+	FromStatusID   int
+	FromStatusName string
+	ToStatusID     int
+	ToStatusName   string
 }
 
 // ParseFieldValues decodes a Redmine custom_fields[].value (JSON null, string,
@@ -367,30 +373,41 @@ func (m *Mapper) FieldLabel(fieldID int, value string) string {
 	return value
 }
 
-// ResolutionDate returns closedOn when set. Otherwise, for a closed issue, it
-// returns the time of the latest change into a closed status, or nil when
-// there is none. Changes may come in any order.
-func (m *Mapper) ResolutionDate(closedOn *time.Time, statusIsClosed bool, changes []StatusChange) *time.Time {
-	if closedOn != nil {
-		return closedOn
-	}
-	if !statusIsClosed {
+// IsDone reports whether a status maps to DONE under the transformation.
+func (m *Mapper) IsDone(statusID int, statusName string, isClosed bool) bool {
+	return m.Status(statusID, statusName, isClosed) == ticket.DONE
+}
+
+// ResolutionDate returns when the issue entered its current uninterrupted run
+// of statuses that map to DONE, so a reopened issue is resolved at its latest
+// closing and an open status mapped to DONE (for example "Verified") resolves
+// too. It is nil while the issue is not DONE.
+//
+// The start comes from the status changes: walking back from the latest, a
+// change into DONE from a non-DONE status is the start, and a move between two
+// DONE statuses extends the run further back. When the history cannot place the
+// start (no change into DONE, an issue created in a DONE status, a gap in the
+// journals), closedOn is the fallback. Changes may come in any order.
+func (m *Mapper) ResolutionDate(issue *Issue, closedOn *time.Time, changes []StatusChange) *time.Time {
+	if !m.IsDone(issue.StatusID, issue.StatusName, issue.StatusIsClosed) {
 		return nil
 	}
-	var latest *time.Time
-	for i := range changes {
-		c := &changes[i]
-		if !m.StatusIsClosed(c.ToStatusID, false) {
-			continue
+	ordered := append([]StatusChange(nil), changes...)
+	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].At.Before(ordered[j].At) })
+	for i := len(ordered) - 1; i >= 0; i-- {
+		c := &ordered[i]
+		if !m.IsDone(c.ToStatusID, c.ToStatusName, false) {
+			break
 		}
-		if latest == nil || c.At.After(*latest) {
-			latest = &c.At
+		if !m.IsDone(c.FromStatusID, c.FromStatusName, false) {
+			at := c.At
+			return &at
 		}
 	}
-	if latest == nil {
+	if closedOn == nil {
 		return nil
 	}
-	at := *latest
+	at := *closedOn
 	return &at
 }
 

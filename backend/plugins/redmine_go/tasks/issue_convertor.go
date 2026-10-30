@@ -93,7 +93,7 @@ func ConvertIssues(taskCtx plugin.SubTaskContext) errors.Error {
 		ConnectionId: connectionId,
 		ProjectId:    data.Options.ProjectId,
 	})
-	for _, table := range []interface{}{&ticket.IssueAssignee{}, &ticket.IssueCustomArrayField{}} {
+	for _, table := range []interface{}{&ticket.IssueAssignee{}, &ticket.IssueCustomArrayField{}, &ticket.BoardIssue{}, &ticket.Issue{}} {
 		if err := db.Delete(table, dal.Where("_raw_data_table = ? AND _raw_data_params = ?", rawTableName(RAW_ISSUES_TABLE), params)); err != nil {
 			return err
 		}
@@ -123,16 +123,18 @@ func ConvertIssues(taskCtx plugin.SubTaskContext) errors.Error {
 			issue := inputRow.(*models.RedmineGoIssue)
 			input := mappingIssue(issue)
 			stdType := mapper.IssueType(input)
-			closed := mapper.StatusIsClosed(int(issue.StatusId), issue.StatusIsClosed)
+			status := mapper.Status(int(issue.StatusId), issue.StatusName, issue.StatusIsClosed)
 
+			// Only a DONE issue has a resolution date, and its history places the
+			// start of the current DONE period.
 			var changes []mapping.StatusChange
-			if issue.RedmineClosedOn == nil && closed {
+			if status == ticket.DONE {
 				var err errors.Error
 				if changes, err = statusChanges(db, connectionId, issue.Id); err != nil {
 					return nil, err
 				}
 			}
-			resolution := mapper.ResolutionDate(issue.RedmineClosedOn, closed, changes)
+			resolution := mapper.ResolutionDate(input, issue.RedmineClosedOn, changes)
 
 			created, updated := issue.RedmineCreatedOn, issue.RedmineUpdatedOn
 			domainIssue := &ticket.Issue{
@@ -143,7 +145,7 @@ func ConvertIssues(taskCtx plugin.SubTaskContext) errors.Error {
 				Description:             issue.Description,
 				Type:                    stdType,
 				OriginalType:            issue.TrackerName,
-				Status:                  mapper.Status(int(issue.StatusId), issue.StatusName, issue.StatusIsClosed),
+				Status:                  status,
 				OriginalStatus:          issue.StatusName,
 				Priority:                issue.PriorityName,
 				Severity:                mapper.Severity(input),
@@ -208,23 +210,27 @@ func hoursToMinutes(hours *float64) *int64 {
 	return &minutes
 }
 
-// statusChanges lists the issue's transitions into a status, from its
-// journals, for the resolution-date fallback.
+// statusChanges lists the issue's status transitions from its journals, oldest
+// first, for the resolution date. A change whose status ids are unreadable
+// keeps what is known: an empty side stands for no status.
 func statusChanges(db dal.Dal, connectionId, issueId uint64) ([]mapping.StatusChange, errors.Error) {
 	var details []models.RedmineGoJournalDetail
-	if err := db.All(&details, dal.Where(
-		"connection_id = ? AND issue_id = ? AND property = ? AND name = ?",
-		connectionId, issueId, "attr", "status_id",
-	)); err != nil {
+	if err := db.All(&details,
+		dal.Where("connection_id = ? AND issue_id = ? AND property = ? AND name = ?", connectionId, issueId, "attr", "status_id"),
+		dal.Orderby("redmine_created_on ASC, journal_id ASC, position ASC"),
+	); err != nil {
 		return nil, err
 	}
 	changes := make([]mapping.StatusChange, 0, len(details))
 	for _, detail := range details {
-		statusId, parseErr := strconv.ParseUint(detail.NewValue, 10, 64)
-		if parseErr != nil {
-			continue
+		change := mapping.StatusChange{At: detail.RedmineCreatedOn, FromStatusName: detail.OldLabel, ToStatusName: detail.NewLabel}
+		if id, parseErr := strconv.Atoi(detail.OldValue); parseErr == nil {
+			change.FromStatusID = id
 		}
-		changes = append(changes, mapping.StatusChange{At: detail.RedmineCreatedOn, ToStatusID: int(statusId)})
+		if id, parseErr := strconv.Atoi(detail.NewValue); parseErr == nil {
+			change.ToStatusID = id
+		}
+		changes = append(changes, change)
 	}
 	return changes, nil
 }
