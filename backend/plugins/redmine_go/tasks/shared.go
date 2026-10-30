@@ -149,7 +149,7 @@ func totalPagesFromCount(res *http.Response, args *helper.ApiCollectorArgs) (int
 	return (page.TotalCount + args.PageSize - 1) / args.PageSize, nil
 }
 
-// ids renders an id for use in text columns and journal values.
+// idString renders an id for use in text columns and journal values.
 func idString(id uint64) string {
 	return strconv.FormatUint(id, 10)
 }

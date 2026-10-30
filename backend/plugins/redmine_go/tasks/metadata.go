@@ -128,7 +128,7 @@ func (l metadataList) extract(taskCtx plugin.SubTaskContext, fn func(row *helper
 	return extractor.Execute()
 }
 
-// rawTable returns the name of the raw table of a list, as listed in subtask
+// rawTableName returns the name of the raw table of a list, as listed in subtask
 // metadata.
 func rawTableName(table string) string {
 	return "_raw_" + table
