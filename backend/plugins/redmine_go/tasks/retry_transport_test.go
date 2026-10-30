@@ -299,17 +299,18 @@ func TestAssembledClientRetriesOnlyViaTransport(t *testing.T) {
 
 	client, err := NewRedmineGoApiClient(taskCtx, connection)
 	require.NoError(t, err)
-	defer client.Release()
 
 	var handlerCalls atomic.Int64
 	client.DoGetAsync("issues.json", nil, nil, func(res *http.Response) lakeErrors.Error {
 		handlerCalls.Add(1)
 		return nil
 	})
-	// Note: the scheduler publishes a task's terminal error via a panic
-	// handler that can land after WaitAsync unblocks (framework trait), so
-	// the deterministic assertions here are on the wire, not the return.
-	_ = client.WaitAsync()
+	// The scheduler publishes a task's terminal error from a panic handler that
+	// runs after the task's wait group is released, and WaitAsync reads that
+	// error list without a lock: calling it here races with the handler. Release
+	// waits on the same wait group without touching the list, so it is the
+	// race-free way to wait for the task, and the assertions are on the wire.
+	client.Release()
 	assert.Equal(t, int64(3), hits.Load(),
 		"exactly the transport's maxAttempts hit the server — the framework retry loop is disabled, not compounded")
 	assert.Zero(t, handlerCalls.Load(), "the handler is never invoked for a failed request")
