@@ -78,6 +78,7 @@ import (
 	opsgenie "github.com/apache/devlake/plugins/opsgenie/impl"
 	org "github.com/apache/devlake/plugins/org/impl"
 	pagerduty "github.com/apache/devlake/plugins/pagerduty/impl"
+	redmineGo "github.com/apache/devlake/plugins/redmine_go/impl"
 	refdiff "github.com/apache/devlake/plugins/refdiff/impl"
 	rootly "github.com/apache/devlake/plugins/rootly/impl"
 	slack "github.com/apache/devlake/plugins/slack/impl"
@@ -132,6 +133,7 @@ func allGoPlugins() []plugin.PluginMeta {
 		opsgenie.Opsgenie{},
 		org.Org{},
 		pagerduty.PagerDuty{},
+		redmineGo.RedmineGo{},
 		refdiff.RefDiff{},
 		rootly.Rootly{},
 		slack.Slack{},
