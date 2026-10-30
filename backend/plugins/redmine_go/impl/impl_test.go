@@ -59,6 +59,32 @@ func TestTablesInfoNamesEveryTableWithThePluginPrefix(t *testing.T) {
 	}, names)
 }
 
+// The subtask list is the execution order: metadata before issues, issues
+// before their details, and every conversion after every extraction.
+func TestSubTaskMetasRunCollectExtractConvertInOrder(t *testing.T) {
+	var names []string
+	for _, meta := range (RedmineGo{}).SubTaskMetas() {
+		assert.NotEmpty(t, meta.DomainTypes, "%s must declare its domain types", meta.Name)
+		assert.NotEmpty(t, meta.Description, meta.Name)
+		assert.True(t, meta.EnabledByDefault, meta.Name)
+		names = append(names, meta.Name)
+	}
+	assert.Equal(t, []string{
+		"collectTrackers", "extractTrackers",
+		"collectStatuses", "extractStatuses",
+		"collectPriorities", "extractPriorities",
+		"collectCustomFields", "extractCustomFields",
+		"collectVersions", "extractVersions",
+		"collectIssueCategories", "extractIssueCategories",
+		"collectIssues", "extractIssues",
+		"collectIssueDetails", "extractIssueJournals",
+		"convertProjects", "convertAccounts", "convertIssues", "convertIssueChangelogs",
+	}, names)
+	for name := range tasks.SubtaskToggles {
+		assert.Contains(t, names, name, "a toggle must name a registered subtask")
+	}
+}
+
 func TestApiResourcesExposeTheContractRoutes(t *testing.T) {
 	routes := (RedmineGo{}).ApiResources()
 	for path, methods := range map[string][]string{
