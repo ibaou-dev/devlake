@@ -171,6 +171,9 @@ func (p RedmineGo) PrepareTaskData(taskCtx plugin.TaskContext, options map[strin
 	if len(scopeConfig.Entities) == 0 {
 		scopeConfig.Entities = plugin.DOMAIN_TYPES
 	}
+	// REDMINE_GO_* environment flags can only force a toggle off, and are read
+	// here so no subtask has to look at the environment.
+	scopeConfig.Transformation.ApplyEnvFlags(taskCtx.GetConfig)
 
 	project := &models.RedmineGoProject{}
 	if err := taskCtx.GetDal().First(project, dal.Where("connection_id = ? AND id = ?", op.ConnectionId, op.ProjectId)); err != nil {

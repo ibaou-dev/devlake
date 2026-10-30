@@ -45,7 +45,7 @@ func MakePipelinePlanV200(
 	if err != nil {
 		return nil, nil, err
 	}
-	plan, err := makePipelinePlanV200(subtaskMetas, tasks.SubtaskToggles, scopeDetails, connection)
+	plan, err := makePipelinePlanV200(subtaskMetas, tasks.SubtaskToggles, basicRes.GetConfig, scopeDetails, connection)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -55,19 +55,23 @@ func MakePipelinePlanV200(
 
 // makePipelinePlanV200 plans one task per project, each in its own stage so
 // projects are collected one after the other and share the connection's rate
-// limit instead of competing for it.
+// limit instead of competing for it. getenv reads the REDMINE_GO_* flags that
+// force a toggle off for every scope.
 func makePipelinePlanV200(
 	subtaskMetas []plugin.SubTaskMeta,
 	subtaskToggles map[string]models.Toggle,
+	getenv func(name string) string,
 	scopeDetails []*srvhelper.ScopeDetail[models.RedmineGoProject, models.RedmineGoScopeConfig],
 	connection *models.RedmineGoConnection,
 ) (coreModels.PipelinePlan, errors.Error) {
 	plan := make(coreModels.PipelinePlan, len(scopeDetails))
 	for i, scopeDetail := range scopeDetails {
 		scope, scopeConfig := scopeDetail.Scope, scopeDetail.ScopeConfig
+		transformation := scopeConfig.Transformation
+		transformation.ApplyEnvFlags(getenv)
 		task, err := helper.MakePipelinePlanTask(
 			"redmine_go",
-			enabledSubtasks(subtaskMetas, subtaskToggles, &scopeConfig.Transformation),
+			EnabledSubtasks(subtaskMetas, subtaskToggles, &transformation),
 			scopeConfig.Entities,
 			tasks.RedmineGoOptions{
 				ConnectionId:  connection.ID,
@@ -83,9 +87,9 @@ func makePipelinePlanV200(
 	return plan, nil
 }
 
-// enabledSubtasks drops the subtasks whose gating toggle is switched off.
+// EnabledSubtasks drops the subtasks whose gating toggle is switched off.
 // Entity filtering happens afterwards, in MakePipelinePlanTask.
-func enabledSubtasks(
+func EnabledSubtasks(
 	metas []plugin.SubTaskMeta,
 	subtaskToggles map[string]models.Toggle,
 	transformation *models.Transformation,
