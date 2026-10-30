@@ -143,11 +143,14 @@ export const ConnectionForm = ({ plugin, connectionId, onSuccess }: Props) => {
       {
         setOperating,
         formatMessage: () => 'Test Connection Successfully.',
-        hideToast: !!pluginConfig.connection.showTestResultMessage,
+        hideToast: !!pluginConfig.connection.showTestResultMessage || !!pluginConfig.connection.formatTestResult,
       },
     );
 
-    if (success && pluginConfig.connection.showTestResultMessage) {
+    if (success && pluginConfig.connection.formatTestResult) {
+      const { level, content } = pluginConfig.connection.formatTestResult(res);
+      message[level]({ content, duration: 8 });
+    } else if (success && pluginConfig.connection.showTestResultMessage) {
       message.success(res?.message || 'Test Connection Successfully.');
     }
   };

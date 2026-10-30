@@ -19,6 +19,7 @@
 import { request } from '@/utils';
 
 import * as jira from './jira';
+import * as redmine_go from './redmine_go';
 import * as tapd from './tapd';
 import * as webhook from './webhook';
 import * as youtrack from './youtrack';
@@ -28,6 +29,7 @@ export const list = (): Promise<[{ plugin: string }]> => request('/plugins');
 export const plugin = {
   list,
   jira,
+  redmine_go,
   tapd,
   webhook,
   youtrack,

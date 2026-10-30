@@ -39,6 +39,7 @@ import { KiroConfig } from './kiro';
 import { LinearConfig } from './linear';
 import { PagerDutyConfig } from './pagerduty';
 import { RedmineConfig } from './redmine';
+import { RedmineGoConfig } from './redmine_go';
 import { RootlyConfig } from './rootly';
 import { SonarQubeConfig } from './sonarqube';
 import { TAPDConfig } from './tapd';
@@ -74,6 +75,7 @@ export const pluginConfigs: IPluginConfig[] = [
   LinearConfig,
   PagerDutyConfig,
   RedmineConfig,
+  RedmineGoConfig,
   RootlyConfig,
   SlackConfig,
   TempoConfig,
