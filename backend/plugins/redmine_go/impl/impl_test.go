@@ -56,6 +56,9 @@ func TestTablesInfoNamesEveryTableWithThePluginPrefix(t *testing.T) {
 		"_tool_redmine_go_issues",
 		"_tool_redmine_go_journals",
 		"_tool_redmine_go_journal_details",
+		"_tool_redmine_go_issue_relations",
+		"_tool_redmine_go_issue_changesets",
+		"_tool_redmine_go_time_entries",
 	}, names)
 }
 
@@ -77,8 +80,11 @@ func TestSubTaskMetasRunCollectExtractConvertInOrder(t *testing.T) {
 		"collectVersions", "extractVersions",
 		"collectIssueCategories", "extractIssueCategories",
 		"collectIssues", "extractIssues",
-		"collectIssueDetails", "extractIssueJournals",
+		"collectIssueDetails", "extractIssueJournals", "extractIssueRelations", "extractIssueChangesets",
+		"collectIssueSweep", "extractIssueSweep",
+		"collectTimeEntries", "extractTimeEntries",
 		"convertProjects", "convertAccounts", "convertIssues", "convertIssueChangelogs",
+		"convertIssueRelationships", "convertIssueComments", "convertIssueCommits", "convertWorklogs", "convertSprints",
 	}, names)
 	for name := range tasks.SubtaskToggles {
 		assert.Contains(t, names, name, "a toggle must name a registered subtask")
@@ -96,9 +102,9 @@ func TestApiResourcesExposeTheContractRoutes(t *testing.T) {
 		"connections/:connectionId/search-remote-scopes":         {"GET"},
 		"connections/:connectionId/proxy/rest/*path":             {"GET"},
 		"connections/:connectionId/scope-configs":                {"POST", "GET"},
+		"connections/:connectionId/observed-values":              {"GET"},
 		"connections/:connectionId/scope-configs/:scopeConfigId": {"PATCH", "GET", "DELETE"},
 		"connections/:connectionId/scope-config-defaults":        {"GET"},
-		"connections/:connectionId/observed-values":              {"GET"},
 		"connections/:connectionId/scopes":                       {"GET", "PUT"},
 		"connections/:connectionId/scopes/:scopeId":              {"GET", "PATCH", "DELETE"},
 		"scope-config/:scopeConfigId/projects":                   {"GET"},

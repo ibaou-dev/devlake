@@ -61,10 +61,7 @@ var scopeProjects = map[uint64]string{
 func newDataFlowTester(t *testing.T) *e2ehelper.DataFlowTester {
 	var redmineGo impl.RedmineGo
 	tester := e2ehelper.NewDataFlowTester(t, "redmine_go", redmineGo)
-	tables := []dal.Tabler{
-		&ticket.Board{}, &ticket.BoardIssue{}, &ticket.Issue{}, &ticket.IssueAssignee{},
-		&ticket.IssueChangelogs{}, &ticket.IssueCustomArrayField{}, &crossdomain.Account{},
-	}
+	tables := append([]dal.Tabler(nil), domainTables()...)
 	for _, table := range redmineGo.GetTablesInfo() {
 		switch table.(type) {
 		case *redmineModels.RedmineGoConnection, *redmineModels.RedmineGoScopeConfig:
@@ -181,13 +178,35 @@ func loadIssueRaw(t *testing.T, tester *e2ehelper.DataFlowTester, set string) {
 	t.Helper()
 	tester.ImportCsvIntoRawTable("./raw_tables/"+set+"_raw_redmine_go_issues.csv", "_raw_redmine_go_issues")
 	tester.ImportCsvIntoRawTable("./raw_tables/"+set+"_raw_redmine_go_issue_details.csv", "_raw_redmine_go_issue_details")
+	for _, table := range []string{rawSweepTable, rawTimeEntriesTable} {
+		tester.FlushRawTable(table)
+	}
+	if set == "" {
+		// The RGO fixtures also have a sweep and time entries; their state is
+		// what Redmine lists now, so a run that sweeps finds nothing to prune.
+		importSweep(tester)
+		importTimeEntries(tester)
+	}
 	for _, table := range []dal.Tabler{
 		&redmineModels.RedmineGoIssue{}, &redmineModels.RedmineGoJournal{}, &redmineModels.RedmineGoJournalDetail{},
 		&redmineModels.RedmineGoAccount{}, &redmineModels.RedmineGoObservedField{},
-		&ticket.Board{}, &ticket.BoardIssue{}, &ticket.Issue{}, &ticket.IssueAssignee{},
-		&ticket.IssueChangelogs{}, &ticket.IssueCustomArrayField{}, &crossdomain.Account{},
+		&redmineModels.RedmineGoIssueRelation{}, &redmineModels.RedmineGoIssueChangeset{}, &redmineModels.RedmineGoTimeEntry{},
 	} {
 		tester.FlushTabler(table)
+	}
+	for _, table := range domainTables() {
+		tester.FlushTabler(table)
+	}
+}
+
+// domainTables lists the domain-layer tables the plugin writes or prunes.
+func domainTables() []dal.Tabler {
+	return []dal.Tabler{
+		&ticket.Board{}, &ticket.BoardIssue{}, &ticket.Issue{}, &ticket.IssueAssignee{},
+		&ticket.IssueChangelogs{}, &ticket.IssueCustomArrayField{}, &crossdomain.Account{},
+		&ticket.IssueRelationship{}, &ticket.IssueWorklog{}, &ticket.IssueComment{},
+		&ticket.Sprint{}, &ticket.BoardSprint{}, &ticket.SprintIssue{},
+		&ticket.Incident{}, &ticket.IncidentAssignee{}, &crossdomain.IssueCommit{},
 	}
 }
 

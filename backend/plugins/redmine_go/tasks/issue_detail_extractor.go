@@ -84,50 +84,19 @@ var _ plugin.SubTaskEntryPoint = ExtractIssueJournals
 // bring back rows the newer one no longer has.
 func ExtractIssueJournals(taskCtx plugin.SubTaskContext) errors.Error {
 	data := taskCtx.GetData().(*RedmineGoTaskData)
-	db := taskCtx.GetDal()
 	connectionId := data.Options.ConnectionId
 
-	lookup, digest, err := loadJournalLookup(db, connectionId)
+	lookup, digest, err := loadJournalLookup(taskCtx.GetDal(), connectionId)
 	if err != nil {
 		return err
 	}
-	var latestVersion map[uint64]uint64
-	extractor, err := helper.NewStatefulApiExtractor(&helper.StatefulApiExtractorArgs[apiIssue]{
-		SubtaskCommonArgs: &helper.SubtaskCommonArgs{
-			SubTaskContext: taskCtx,
-			Table:          RAW_ISSUE_DETAILS_TABLE,
-			Params: models.RedmineGoApiParams{
-				ConnectionId: connectionId,
-				ProjectId:    data.Options.ProjectId,
-			},
-			SubtaskConfig: journalExtractorConfig{Version: extractorVersion, LookupDigest: digest},
-		},
-		BeforeExtract: func(issue *apiIssue, _ *helper.SubtaskStateManager) errors.Error {
-			// Both modes: the divider's full-sync wipe fires only when a row of
-			// the type is emitted, so an issue whose journals all vanished would
-			// otherwise keep its old rows.
-			for _, table := range []interface{}{&models.RedmineGoJournalDetail{}, &models.RedmineGoJournal{}} {
-				if err := db.Delete(table, dal.Where("connection_id = ? AND issue_id = ?", connectionId, issue.Id)); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-		Extract: func(item *apiIssue, row *helper.RawData) ([]interface{}, errors.Error) {
-			if latestId, ok := latestVersion[item.Id]; ok && row.ID != latestId {
-				return nil, nil
-			}
-			return journalRows(connectionId, item, lookup), nil
+	return extractIssueDetails(taskCtx, detailExtraction{
+		Config:   journalExtractorConfig{Version: extractorVersion, LookupDigest: digest},
+		Replaced: []interface{}{&models.RedmineGoJournalDetail{}, &models.RedmineGoJournal{}},
+		Rows: func(item *apiIssue) []interface{} {
+			return journalRows(connectionId, item, lookup)
 		},
 	})
-	if err != nil {
-		return err
-	}
-	latestVersion, err = latestDetailVersions(db, extractor)
-	if err != nil {
-		return err
-	}
-	return extractor.Execute()
 }
 
 // journalRows maps the journals of an issue detail to tool rows: the journal,

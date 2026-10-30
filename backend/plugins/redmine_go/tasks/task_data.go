@@ -46,4 +46,8 @@ type RedmineGoTaskData struct {
 	// ScopeConfig is never nil: PrepareTaskData substitutes an empty config,
 	// whose unset mappings and toggles resolve to the built-in defaults.
 	ScopeConfig *models.RedmineGoScopeConfig
+	// IssueProbe asks Redmine whether an issue is still in a project. The
+	// reconciliation sweep confirms with it before it deletes an issue; a nil
+	// probe, as in e2e tests, takes every issue missing from the sweep as gone.
+	IssueProbe IssueProbe
 }

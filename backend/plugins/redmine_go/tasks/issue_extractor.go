@@ -66,6 +66,28 @@ type apiIssue struct {
 	UpdatedOn           time.Time       `json:"updated_on"`
 	ClosedOn            *time.Time      `json:"closed_on"`
 	Journals            []apiJournal    `json:"journals"`
+	Relations           []apiRelation   `json:"relations"`
+	Changesets          []apiChangeset  `json:"changesets"`
+}
+
+// apiRelation is an issue relation as the list and the detail return it. The
+// relation appears under both of its issues with the same id; relation_type
+// reads from issue_id to issue_to_id.
+type apiRelation struct {
+	Id           uint64 `json:"id"`
+	IssueId      uint64 `json:"issue_id"`
+	IssueToId    uint64 `json:"issue_to_id"`
+	RelationType string `json:"relation_type"`
+	Delay        *int   `json:"delay"`
+}
+
+// apiChangeset is a repository changeset linked to an issue, as the detail
+// returns it. The user is absent when the committer maps to no Redmine user.
+type apiChangeset struct {
+	Revision    string     `json:"revision"`
+	User        *apiRef    `json:"user"`
+	Comments    string     `json:"comments"`
+	CommittedOn *time.Time `json:"committed_on"`
 }
 
 // apiCustomFieldValue is one element of an issue's custom_fields array.
