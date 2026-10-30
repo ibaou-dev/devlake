@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 
 	"github.com/apache/devlake/core/dal"
@@ -54,6 +55,14 @@ var scopeProjects = map[uint64]string{
 	8: "rgo-fixtures-b",
 }
 
+// migrateTables creates every table the tests touch. The schema is database
+// wide and only ever read afterwards, so one migration serves the whole run:
+// repeating it per test cost minutes of information_schema queries on MySQL.
+var (
+	migrateOnce sync.Once
+	migrateErr  error
+)
+
 // newDataFlowTester opens a redmine_go DataFlowTester and creates every table
 // the subtasks read or delete from. The connection table is skipped: the
 // subtasks never touch it, and its encrypted token needs a serializer the
@@ -61,26 +70,51 @@ var scopeProjects = map[uint64]string{
 func newDataFlowTester(t *testing.T) *e2ehelper.DataFlowTester {
 	var redmineGo impl.RedmineGo
 	tester := e2ehelper.NewDataFlowTester(t, "redmine_go", redmineGo)
-	tables := append([]dal.Tabler(nil), domainTables()...)
-	for _, table := range redmineGo.GetTablesInfo() {
-		switch table.(type) {
-		case *redmineModels.RedmineGoConnection, *redmineModels.RedmineGoScopeConfig:
-		default:
-			tables = append(tables, table)
+	migrateOnce.Do(func() {
+		tables := append([]dal.Tabler(nil), domainTables()...)
+		for _, table := range redmineGo.GetTablesInfo() {
+			switch table.(type) {
+			case *redmineModels.RedmineGoConnection, *redmineModels.RedmineGoScopeConfig:
+			default:
+				tables = append(tables, table)
+			}
 		}
-	}
-	for _, table := range tables {
-		require.NoError(t, tester.Db.AutoMigrate(table))
-	}
-	require.NoError(t, tester.Db.AutoMigrate(&models.SubtaskState{}))
+		tables = append(tables, &models.SubtaskState{})
+		for _, table := range tables {
+			if migrateErr = tester.Db.AutoMigrate(table); migrateErr != nil {
+				return
+			}
+		}
+	})
+	require.NoError(t, migrateErr)
 	seedProjects(t, tester)
 	return tester
+}
+
+// clearTable deletes every row of a migrated table. It stands in for
+// DataFlowTester.FlushTabler, whose DROP and CREATE cost about 100ms each on
+// MySQL; none of the tables cleared here has an auto-increment key that a
+// snapshot could see.
+func clearTable(tester *e2ehelper.DataFlowTester, table dal.Tabler) {
+	if err := tester.Db.Exec("DELETE FROM " + table.TableName()).Error; err != nil {
+		panic(err)
+	}
+}
+
+// runSubtask runs one subtask in full-sync mode, as DataFlowTester.Subtask
+// does, but clears the subtask state with a DELETE instead of recreating its
+// table.
+func runSubtask(tester *e2ehelper.DataFlowTester, meta plugin.SubTaskMeta, taskData interface{}) {
+	clearTable(tester, &models.SubtaskState{})
+	if err := meta.EntryPoint(tester.SubtaskContext(taskData)); err != nil {
+		panic(err)
+	}
 }
 
 // seedProjects stores the scope rows the board convertor and the journal
 // translation read, as the scope API would have.
 func seedProjects(t *testing.T, tester *e2ehelper.DataFlowTester) {
-	tester.FlushTabler(&redmineModels.RedmineGoProject{})
+	clearTable(tester, &redmineModels.RedmineGoProject{})
 	for id, identifier := range scopeProjects {
 		project := &redmineModels.RedmineGoProject{
 			Scope: common.Scope{ConnectionId: connectionId},
@@ -128,7 +162,7 @@ func transformationFrom(t *testing.T, document string) redmineModels.Transformat
 // tests and state keys do not include the test name.
 func beginStatefulScenario(t *testing.T, tester *e2ehelper.DataFlowTester) {
 	t.Helper()
-	tester.FlushTabler(&models.SubtaskState{})
+	clearTable(tester, &models.SubtaskState{})
 }
 
 // runSubtaskPreservingState runs one subtask inside a stateful scenario: the
@@ -158,7 +192,7 @@ func importMetadata(t *testing.T, tester *e2ehelper.DataFlowTester) {
 		&redmineModels.RedmineGoTracker{}, &redmineModels.RedmineGoStatus{}, &redmineModels.RedmineGoPriority{},
 		&redmineModels.RedmineGoCustomField{}, &redmineModels.RedmineGoVersion{}, &redmineModels.RedmineGoIssueCategory{},
 	} {
-		tester.FlushTabler(table)
+		clearTable(tester, table)
 	}
 	for _, projectId := range []uint64{1, 2, 6, 7, 8} {
 		data := newTaskData(projectId, zeroConfig())
@@ -166,7 +200,7 @@ func importMetadata(t *testing.T, tester *e2ehelper.DataFlowTester) {
 			tasks.ExtractTrackersMeta, tasks.ExtractStatusesMeta, tasks.ExtractPrioritiesMeta,
 			tasks.ExtractCustomFieldsMeta, tasks.ExtractVersionsMeta, tasks.ExtractIssueCategoriesMeta,
 		} {
-			tester.Subtask(meta, data)
+			runSubtask(tester, meta, data)
 		}
 	}
 }
@@ -192,10 +226,10 @@ func loadIssueRaw(t *testing.T, tester *e2ehelper.DataFlowTester, set string) {
 		&redmineModels.RedmineGoAccount{}, &redmineModels.RedmineGoObservedField{},
 		&redmineModels.RedmineGoIssueRelation{}, &redmineModels.RedmineGoIssueChangeset{}, &redmineModels.RedmineGoTimeEntry{},
 	} {
-		tester.FlushTabler(table)
+		clearTable(tester, table)
 	}
 	for _, table := range domainTables() {
-		tester.FlushTabler(table)
+		clearTable(tester, table)
 	}
 }
 
@@ -214,8 +248,8 @@ func domainTables() []dal.Tabler {
 func extractIssues(tester *e2ehelper.DataFlowTester, projectIds ...uint64) {
 	for _, projectId := range projectIds {
 		data := newTaskData(projectId, zeroConfig())
-		tester.Subtask(tasks.ExtractIssuesMeta, data)
-		tester.Subtask(tasks.ExtractIssueJournalsMeta, data)
+		runSubtask(tester, tasks.ExtractIssuesMeta, data)
+		runSubtask(tester, tasks.ExtractIssueJournalsMeta, data)
 	}
 }
 
@@ -223,10 +257,10 @@ func extractIssues(tester *e2ehelper.DataFlowTester, projectIds ...uint64) {
 func convertIssues(tester *e2ehelper.DataFlowTester, transformation redmineModels.Transformation, projectIds ...uint64) {
 	for _, projectId := range projectIds {
 		data := newTaskData(projectId, transformation)
-		tester.Subtask(tasks.ConvertProjectsMeta, data)
-		tester.Subtask(tasks.ConvertAccountsMeta, data)
-		tester.Subtask(tasks.ConvertIssuesMeta, data)
-		tester.Subtask(tasks.ConvertIssueChangelogsMeta, data)
+		runSubtask(tester, tasks.ConvertProjectsMeta, data)
+		runSubtask(tester, tasks.ConvertAccountsMeta, data)
+		runSubtask(tester, tasks.ConvertIssuesMeta, data)
+		runSubtask(tester, tasks.ConvertIssueChangelogsMeta, data)
 	}
 }
 

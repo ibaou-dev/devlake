@@ -46,7 +46,7 @@ func TestObservedValuesAreEmptyBeforeTheFirstCollectionAndFilledAfter(t *testing
 		&models.RedmineGoTracker{}, &models.RedmineGoStatus{}, &models.RedmineGoPriority{}, &models.RedmineGoCustomField{},
 		&models.RedmineGoIssueCategory{}, &models.RedmineGoObservedField{}, &models.RedmineGoIssue{},
 	} {
-		tester.FlushTabler(table)
+		clearTable(tester, table)
 	}
 	empty, err := api.LoadObservedValues(tester.Dal, connectionId)
 	require.NoError(t, err)
@@ -89,7 +89,7 @@ func TestObservedValuesNameFieldsFromIssuesWhenTheKeyCannotReadDefinitions(t *te
 	loadIssueRaw(t, tester, "")
 	extractIssues(tester, 6, 7, 8)
 	// A non-admin key never collects custom_fields.json.
-	tester.FlushTabler(&models.RedmineGoCustomField{})
+	clearTable(tester, &models.RedmineGoCustomField{})
 
 	values, err := api.LoadObservedValues(tester.Dal, connectionId)
 	require.NoError(t, err)

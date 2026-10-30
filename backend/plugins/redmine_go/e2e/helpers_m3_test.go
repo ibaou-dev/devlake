@@ -59,7 +59,7 @@ func runPlanned(tester *e2ehelper.DataFlowTester, data *tasks.RedmineGoTaskData)
 		if strings.HasPrefix(meta.Name, "collect") {
 			continue
 		}
-		tester.Subtask(meta, data)
+		runSubtask(tester, meta, data)
 	}
 }
 

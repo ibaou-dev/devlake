@@ -111,7 +111,7 @@ func TestMetadataIsReplacedPerRun(t *testing.T) {
 
 	// Redmine lost a status: its raw row is gone from the next collection.
 	deleteRawContaining(t, tester, "_raw_redmine_go_statuses", "Rejected by QA")
-	tester.Subtask(tasks.ExtractStatusesMeta, newTaskData(6, zeroConfig()))
+	runSubtask(tester, tasks.ExtractStatusesMeta, newTaskData(6, zeroConfig()))
 	assert.Equal(t, before-1, count(t, tester, &models.RedmineGoStatus{}, ""))
 	assert.Zero(t, count(t, tester, &models.RedmineGoStatus{}, "name = ?", "Rejected by QA"))
 }
@@ -125,7 +125,7 @@ func TestMetadataEmptiedListIsCleared(t *testing.T) {
 	versions := count(t, tester, &models.RedmineGoVersion{}, "")
 
 	require.NoError(t, tester.Db.Exec("DELETE FROM _raw_redmine_go_issue_categories").Error)
-	tester.Subtask(tasks.ExtractIssueCategoriesMeta, newTaskData(6, zeroConfig()))
+	runSubtask(tester, tasks.ExtractIssueCategoriesMeta, newTaskData(6, zeroConfig()))
 
 	assert.Zero(t, count(t, tester, &models.RedmineGoIssueCategory{}, ""), "the project's categories are gone")
 	assert.Equal(t, versions, count(t, tester, &models.RedmineGoVersion{}, ""), "other lists are untouched")

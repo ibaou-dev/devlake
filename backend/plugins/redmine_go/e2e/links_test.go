@@ -270,7 +270,7 @@ func TestSweepRemovesDeletedAndMovedIssuesFromBothLayers(t *testing.T) {
 
 	// The sweep lists neither: both leave the tool and the domain layer at
 	// once, before any conversion runs again.
-	tester.Subtask(tasks.ExtractIssueSweepMeta, newTaskData(6, zeroConfig()))
+	runSubtask(tester, tasks.ExtractIssueSweepMeta, newTaskData(6, zeroConfig()))
 	for _, issueId := range []uint64{170, 171} {
 		for table, rows := range issueFootprint(t, tester, issueId) {
 			assert.Zero(t, rows, "issue %d must be gone from %s", issueId, table)
@@ -322,7 +322,7 @@ func TestSweepKeepsAnIssueRedmineStillHasInTheProject(t *testing.T) {
 		probed = append(probed, issueId)
 		return issueId == 171, nil
 	}
-	tester.Subtask(tasks.ExtractIssueSweepMeta, data)
+	runSubtask(tester, tasks.ExtractIssueSweepMeta, data)
 
 	assert.ElementsMatch(t, []uint64{170, 171}, probed, "every missing issue is confirmed with Redmine before it is deleted")
 	assert.Equal(t, int64(1), issueFootprint(t, tester, 171)["_tool_redmine_go_issues"], "the issue Redmine still has is kept")
@@ -430,7 +430,7 @@ func TestPublicPrivateAndEditedNotesBecomeComments(t *testing.T) {
 	includePrivate := models.Transformation{IncludePrivateNotes: &on}
 	toolBefore := count(t, tester, &models.RedmineGoJournal{}, "")
 	for _, projectId := range []uint64{6, 7, 8} {
-		tester.Subtask(tasks.ConvertIssueCommentsMeta, newTaskData(projectId, includePrivate))
+		runSubtask(tester, tasks.ConvertIssueCommentsMeta, newTaskData(projectId, includePrivate))
 	}
 	assert.Equal(t, withoutPrivate+1, count(t, tester, &ticket.IssueComment{}, ""))
 	verifyDomainTable(tester, &ticket.IssueComment{}, "issue_comments_with_private")
@@ -438,7 +438,7 @@ func TestPublicPrivateAndEditedNotesBecomeComments(t *testing.T) {
 
 	// And off again removes it.
 	for _, projectId := range []uint64{6, 7, 8} {
-		tester.Subtask(tasks.ConvertIssueCommentsMeta, newTaskData(projectId, zeroConfig()))
+		runSubtask(tester, tasks.ConvertIssueCommentsMeta, newTaskData(projectId, zeroConfig()))
 	}
 	assert.Equal(t, withoutPrivate, count(t, tester, &ticket.IssueComment{}, ""))
 }
@@ -594,7 +594,7 @@ func TestEnvFlagsForceTogglesOffWhateverTheScopeConfigSays(t *testing.T) {
 		assert.NotContains(t, plannedNames(forced), gated)
 	}
 	for _, table := range []dal.Tabler{&ticket.IssueWorklog{}, &ticket.IssueComment{}, &ticket.Sprint{}, &crossdomain.IssueCommit{}, &models.RedmineGoTimeEntry{}} {
-		tester.FlushTabler(table)
+		clearTable(tester, table)
 	}
 	runPlanned(tester, forced)
 	assert.Zero(t, count(t, tester, &ticket.IssueWorklog{}, ""))
@@ -606,7 +606,7 @@ func TestEnvFlagsForceTogglesOffWhateverTheScopeConfigSays(t *testing.T) {
 	// The private note is a conversion option, so check it where it applies.
 	privateOnly := newTaskData(6, enabled)
 	privateOnly.ScopeConfig.Transformation.ApplyEnvFlags(func(name string) string { return map[string]string{"REDMINE_GO_INCLUDE_PRIVATE_NOTES": "false"}[name] })
-	tester.Subtask(tasks.ConvertIssueCommentsMeta, privateOnly)
+	runSubtask(tester, tasks.ConvertIssueCommentsMeta, privateOnly)
 	assert.Zero(t, count(t, tester, &ticket.IssueComment{}, "body = ?", "RGO private note"))
 	assert.Positive(t, count(t, tester, &ticket.IssueComment{}, ""))
 }
