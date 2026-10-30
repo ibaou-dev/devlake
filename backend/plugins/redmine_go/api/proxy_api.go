@@ -18,23 +18,69 @@ limitations under the License.
 package api
 
 import (
+	"fmt"
+	"path"
+	"regexp"
+	"strings"
+
 	"github.com/apache/devlake/core/errors"
 	"github.com/apache/devlake/core/plugin"
 )
 
-// Proxy forwards a GET request to the Redmine REST API through the
-// connection. The config UI uses it to load trackers, statuses, priorities
-// and custom fields live, so that mapping forms offer the instance's real
-// values.
-// @Summary Forward api request to the Redmine REST API
-// @Description Forward a GET request to the Redmine REST API through the connection's key
+// proxyAllowlist holds the Redmine paths the config UI may read through the
+// proxy: the metadata that fills the mapping forms. Anything else is refused.
+// Redmine's `users/current.json` in particular returns the caller's own API
+// key, so a generic forwarder would hand the connection's secret to any
+// client of the DevLake API.
+var proxyAllowlist = []*regexp.Regexp{
+	regexp.MustCompile(`^projects\.json$`),
+	regexp.MustCompile(`^projects/[A-Za-z0-9_-]+\.json$`),
+	regexp.MustCompile(`^projects/[A-Za-z0-9_-]+/versions\.json$`),
+	regexp.MustCompile(`^projects/[A-Za-z0-9_-]+/issue_categories\.json$`),
+	regexp.MustCompile(`^trackers\.json$`),
+	regexp.MustCompile(`^issue_statuses\.json$`),
+	regexp.MustCompile(`^enumerations/[a-z_]+\.json$`),
+	regexp.MustCompile(`^custom_fields\.json$`),
+}
+
+// proxyPathAllowed reports whether a request path, with its leading slash
+// removed, is one of the allowlisted metadata paths. A path that is not in
+// canonical form (dot segments, doubled slashes) is refused outright, so
+// traversal cannot reach a path outside the list.
+func proxyPathAllowed(requestPath string) bool {
+	if requestPath == "" || path.Clean(requestPath) != requestPath {
+		return false
+	}
+	for _, allowed := range proxyAllowlist {
+		if allowed.MatchString(requestPath) {
+			return true
+		}
+	}
+	return false
+}
+
+// Proxy forwards a GET request for Redmine metadata to the REST API through
+// the connection. The config UI uses it to load trackers, statuses,
+// priorities, custom fields, versions and issue categories live, so mapping
+// forms offer the instance's real values. Only the allowlisted paths are
+// forwarded; any other path is answered with 403.
+// @Summary Forward an allowlisted metadata request to the Redmine REST API
+// @Description Forward a GET request for Redmine metadata (projects, trackers, issue statuses, enumerations, custom fields, versions, issue categories) through the connection's key; other paths are refused with 403
 // @Tags plugins/redmine_go
 // @Param connectionId path int true "connection ID"
-// @Param path path string true "path to Redmine REST API"
+// @Param path path string true "allowlisted path of the Redmine REST API"
 // @Success 200 {object} interface{} "Success"
 // @Failure 400  {object} shared.ApiBody "Bad Request"
+// @Failure 403  {object} shared.ApiBody "Path not allowed"
 // @Failure 500  {object} shared.ApiBody "Internal Error"
 // @Router /plugins/redmine_go/connections/{connectionId}/proxy/rest/{path} [GET]
 func Proxy(input *plugin.ApiResourceInput) (*plugin.ApiResourceOutput, errors.Error) {
+	requestPath := strings.TrimPrefix(input.Params["path"], "/")
+	if !proxyPathAllowed(requestPath) {
+		return nil, errors.Forbidden.New(fmt.Sprintf(
+			"the proxy only forwards Redmine metadata paths (projects, trackers, issue_statuses, enumerations, custom_fields, versions, issue_categories); %q is not allowed",
+			requestPath))
+	}
+	input.Params["path"] = requestPath
 	return raProxy.Proxy(input)
 }
