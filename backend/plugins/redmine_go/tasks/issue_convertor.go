@@ -80,6 +80,7 @@ func ConvertIssues(taskCtx plugin.SubTaskContext) errors.Error {
 		return err
 	}
 	mapper := mapping.NewMapper(&data.ScopeConfig.Transformation, instance)
+	warnUnresolvedFields(taskCtx.GetLogger(), data.ScopeConfig, mapper)
 
 	issueIdGen := didgen.NewDomainIdGenerator(&models.RedmineGoIssue{})
 	accountIdGen := didgen.NewDomainIdGenerator(&models.RedmineGoAccount{})

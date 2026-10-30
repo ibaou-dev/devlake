@@ -129,6 +129,7 @@ type Mapper struct {
 	statusClosed    map[int]bool
 	defaultStatuses map[int]struct{}
 	fieldLabels     map[int]map[string]string
+	fieldNames      map[string]struct{}
 }
 
 // NewMapper builds a Mapper. A nil transformation is the empty one: every
@@ -149,6 +150,7 @@ func NewMapper(t *models.Transformation, inst Instance) *Mapper {
 		statusClosed:    make(map[int]bool, len(inst.Statuses)),
 		defaultStatuses: make(map[int]struct{}, len(inst.Trackers)),
 		fieldLabels:     make(map[int]map[string]string, len(inst.Fields)),
+		fieldNames:      make(map[string]struct{}, len(inst.Fields)),
 	}
 	if t.Component != nil {
 		m.component = *t.Component
@@ -165,11 +167,56 @@ func NewMapper(t *models.Transformation, inst Instance) *Mapper {
 	}
 	for _, f := range inst.Fields {
 		m.fieldIDs[f.ID] = struct{}{}
+		m.fieldNames[normalizeName(f.Name)] = struct{}{}
 		if len(f.Labels) > 0 {
 			m.fieldLabels[f.ID] = f.Labels
 		}
 	}
 	return m
+}
+
+func normalizeName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
+// UnresolvedFields lists the custom fields the transformation configures that
+// the instance cannot resolve: a type-rule condition field, a severity or
+// environment field, or the component field whose id and name both match no
+// field the instance knows. Such a field never has a value, so its mapping
+// silently does nothing. Each field appears once, in configuration order.
+func (m *Mapper) UnresolvedFields() []models.Ref {
+	var out []models.Ref
+	seen := map[models.Ref]struct{}{}
+	check := func(ref models.Ref) {
+		if _, dup := seen[ref]; dup {
+			return
+		}
+		seen[ref] = struct{}{}
+		if _, ok := m.fieldIDs[ref.ID]; ok {
+			return
+		}
+		if name := normalizeName(ref.Name); name != "" {
+			if _, ok := m.fieldNames[name]; ok {
+				return
+			}
+		}
+		out = append(out, ref)
+	}
+	for i := range m.typeRules {
+		if when := m.typeRules[i].When; when != nil {
+			check(when.Field)
+		}
+	}
+	for _, vm := range m.severity {
+		check(vm.field)
+	}
+	for _, vm := range m.environment {
+		check(vm.field)
+	}
+	if m.component.Source == models.ComponentSourceCustomField && m.component.Field != nil {
+		check(*m.component.Field)
+	}
+	return out
 }
 
 func newValueMaps(fields []models.ValueMapField) []valueMap {
