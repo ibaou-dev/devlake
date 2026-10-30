@@ -74,7 +74,7 @@ func assertNoDuplicateDetails(t *testing.T, tester *e2ehelper.DataFlowTester) {
 	t.Helper()
 	var total, distinct int64
 	require.NoError(t, tester.Db.Raw("SELECT COUNT(*) FROM _tool_redmine_go_journal_details").Row().Scan(&total))
-	require.NoError(t, tester.Db.Raw("SELECT COUNT(*) FROM (SELECT DISTINCT connection_id, journal_id, detail_key FROM _tool_redmine_go_journal_details) AS keys").Row().Scan(&distinct))
+	require.NoError(t, tester.Db.Raw("SELECT COUNT(*) FROM (SELECT DISTINCT connection_id, journal_id, detail_key FROM _tool_redmine_go_journal_details) AS distinct_keys").Row().Scan(&distinct))
 	assert.Equal(t, total, distinct)
 }
 
