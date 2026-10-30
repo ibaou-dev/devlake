@@ -1,0 +1,36 @@
+connection_id,journal_id,detail_key,issue_id,position,user_id,user_name,redmine_created_on,property,name,field_name,old_value,new_value,old_label,new_label
+1,656,ae8daa2134219cc1-0,155,0,1,Redmine Admin,2026-10-30T00:40:38.000+00:00,attr,child_id,child,,156,,#156
+1,657,c527aa139ebdd96b-0,158,0,1,Redmine Admin,2026-10-30T00:40:39.000+00:00,relation,relates,relation_relates,,159,,#159
+1,658,4df8733d75caf512-0,159,0,1,Redmine Admin,2026-10-30T00:40:39.000+00:00,relation,relates,relation_relates,,158,,#158
+1,659,13b3835f534847d8-0,160,0,1,Redmine Admin,2026-10-30T00:40:40.000+00:00,relation,duplicates,relation_duplicates,,161,,#161
+1,660,6d67583557c7190e-0,161,0,1,Redmine Admin,2026-10-30T00:40:40.000+00:00,relation,duplicated,relation_duplicated,,160,,#160
+1,661,9f3f00c34a2236ce-0,162,0,1,Redmine Admin,2026-10-30T00:40:40.000+00:00,relation,blocks,relation_blocks,,163,,#163
+1,662,713895e5767f325d-0,163,0,1,Redmine Admin,2026-10-30T00:40:40.000+00:00,relation,blocked,relation_blocked,,162,,#162
+1,663,230aa31e6af1cddf-0,165,2,1,Redmine Admin,2026-10-30T00:40:41.000+00:00,relation,follows,relation_follows,,164,,#164
+1,663,30df80411822fa79-0,165,1,1,Redmine Admin,2026-10-30T00:40:41.000+00:00,attr,start_date,start_date,2026-10-01,2026-10-07,2026-10-01,2026-10-07
+1,663,eb8acdebef2ba627-0,165,0,1,Redmine Admin,2026-10-30T00:40:41.000+00:00,attr,due_date,due_date,2026-10-02,2026-10-08,2026-10-02,2026-10-08
+1,664,f1a455017c9523fc-0,164,0,1,Redmine Admin,2026-10-30T00:40:41.000+00:00,relation,precedes,relation_precedes,,165,,#165
+1,665,997c74899fe93432-0,166,0,1,Redmine Admin,2026-10-30T00:40:42.000+00:00,relation,copied_to,relation_copied_to,,167,,#167
+1,666,7d8598b437f2286b-0,167,0,1,Redmine Admin,2026-10-30T00:40:42.000+00:00,relation,copied_from,relation_copied_from,,166,,#166
+1,667,4444196028fb74e9-0,168,0,1,Redmine Admin,2026-10-30T00:40:43.000+00:00,relation,relates,relation_relates,,169,,#169
+1,668,509d0f5e233f0572-0,169,0,1,Redmine Admin,2026-10-30T00:40:43.000+00:00,relation,relates,relation_relates,,168,,#168
+1,669,f2761e08db07d108-0,168,0,1,Redmine Admin,2026-10-30T00:40:43.000+00:00,relation,relates,relation_relates,169,,#169,
+1,670,d1e56a37ac405407-0,169,0,1,Redmine Admin,2026-10-30T00:40:43.000+00:00,relation,relates,relation_relates,168,,#168,
+1,671,ca068c15914423f2-0,170,0,1,Redmine Admin,2026-10-30T00:40:44.000+00:00,attr,project_id,project,6,8,Project rgo-fixtures,Project rgo-fixtures-b
+1,672,75d616e996962bbf-0,172,0,1,Redmine Admin,2026-10-30T00:40:46.000+00:00,attr,status_id,status,1,2,New,In Progress
+1,673,3f611dd5166d701d-0,172,0,1,Redmine Admin,2026-10-30T00:40:47.000+00:00,attr,status_id,status,2,5,In Progress,Closed
+1,674,37e7ab76c60fa535-0,172,0,1,Redmine Admin,2026-10-30T00:40:48.000+00:00,attr,status_id,status,5,2,Closed,In Progress
+1,675,3f611dd5166d701d-0,172,0,1,Redmine Admin,2026-10-30T00:40:49.000+00:00,attr,status_id,status,2,5,In Progress,Closed
+1,676,638959fb6dfde6ff-0,173,0,1,Redmine Admin,2026-10-30T00:40:50.000+00:00,attr,status_id,status,1,10,New,Archived (rgo)
+1,677,0e2cc395cefd3025-0,174,7,1,Redmine Admin,2026-10-30T00:40:50.000+00:00,cf,16,RGO Target release,21,22,RGO 1.0 (open),RGO 2.0 (open)
+1,677,438c8dc2ae3b2550-0,174,2,1,Redmine Admin,2026-10-30T00:40:50.000+00:00,cf,13,RGO Environment,,11,,Test
+1,677,515a65e81bda8ce4-0,174,5,1,Redmine Admin,2026-10-30T00:40:50.000+00:00,cf,14,RGO Components,,Reports,,Reports
+1,677,54e3410127a95699-0,174,6,1,Redmine Admin,2026-10-30T00:40:50.000+00:00,cf,15,RGO Reviewer,15,16,Fixture A,16
+1,677,6b1390d84c988289-0,174,4,1,Redmine Admin,2026-10-30T00:40:50.000+00:00,cf,14,RGO Components,API,,API,
+1,677,772e83907fd39a1d-0,174,0,1,Redmine Admin,2026-10-30T00:40:50.000+00:00,cf,12,RGO Severity,7,9,Minor,Critical
+1,677,7746f04f83f0fbcc-0,174,1,1,Redmine Admin,2026-10-30T00:40:50.000+00:00,cf,13,RGO Environment,10,,Dev,
+1,677,86a65105d7daadb3-0,174,3,1,Redmine Admin,2026-10-30T00:40:50.000+00:00,cf,13,RGO Environment,,12,,Prod
+1,677,b638c70f4eb7dfe5-0,174,8,1,Redmine Admin,2026-10-30T00:40:50.000+00:00,cf,17,RGO Regulated,0,1,No,Yes
+1,685,75d616e996962bbf-0,175,0,1,Redmine Admin,2026-10-30T17:12:11.000+00:00,attr,status_id,status,1,2,New,In Progress
+1,686,b1b2e89c2e77db14-0,153,0,1,Redmine Admin,2026-10-30T17:13:52.000+00:00,attr,category_id,category,,1,,RGO Backend
+1,687,50c68e0f1e63e08d-0,152,0,1,Redmine Admin,2026-10-30T17:13:52.000+00:00,attr,category_id,category,,2,,RGO Frontend

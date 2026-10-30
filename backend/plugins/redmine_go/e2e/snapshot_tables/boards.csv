@@ -1,0 +1,4 @@
+id,name,description,url,created_date,type
+redmine_go:RedmineGoProject:1:6,Project rgo-fixtures,,https://redmine.example.org/projects/rgo-fixtures,,
+redmine_go:RedmineGoProject:1:7,Project rgo-fixtures-sub,,https://redmine.example.org/projects/rgo-fixtures-sub,,
+redmine_go:RedmineGoProject:1:8,Project rgo-fixtures-b,,https://redmine.example.org/projects/rgo-fixtures-b,,

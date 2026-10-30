@@ -1,0 +1,6 @@
+id,params,data,url,input,created_at
+1,"{""ConnectionId"":1}","{""id"":1,""name"":""Low"",""is_default"":false,""active"":true}",https://redmine.example.org/enumerations/issue_priorities.json,null,2026-10-30T12:00:00.000+00:00
+2,"{""ConnectionId"":1}","{""id"":2,""name"":""Normal"",""is_default"":true,""active"":true}",https://redmine.example.org/enumerations/issue_priorities.json,null,2026-10-30T12:00:00.000+00:00
+3,"{""ConnectionId"":1}","{""id"":3,""name"":""High"",""is_default"":false,""active"":true}",https://redmine.example.org/enumerations/issue_priorities.json,null,2026-10-30T12:00:00.000+00:00
+4,"{""ConnectionId"":1}","{""id"":4,""name"":""Urgent"",""is_default"":false,""active"":true}",https://redmine.example.org/enumerations/issue_priorities.json,null,2026-10-30T12:00:00.000+00:00
+5,"{""ConnectionId"":1}","{""id"":5,""name"":""Immediate"",""is_default"":false,""active"":true}",https://redmine.example.org/enumerations/issue_priorities.json,null,2026-10-30T12:00:00.000+00:00
