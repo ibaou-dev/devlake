@@ -434,8 +434,10 @@ func (m *Mapper) IsDone(statusID int, statusName string, isClosed bool) bool {
 // change into DONE from a non-DONE status is the start, and a move between two
 // DONE statuses extends the run further back. When the history cannot place the
 // start (no change into DONE, an issue created in a DONE status, a gap in the
-// journals), closedOn is the fallback. Changes may come in any order.
-func (m *Mapper) ResolutionDate(issue *Issue, closedOn *time.Time, changes []StatusChange) *time.Time {
+// journals), closedOn is the fallback. An issue whose status never changed has
+// held it since created, which is the last fallback. Changes may come in any
+// order.
+func (m *Mapper) ResolutionDate(issue *Issue, created time.Time, closedOn *time.Time, changes []StatusChange) *time.Time {
 	if !m.IsDone(issue.StatusID, issue.StatusName, issue.StatusIsClosed) {
 		return nil
 	}
@@ -451,11 +453,15 @@ func (m *Mapper) ResolutionDate(issue *Issue, closedOn *time.Time, changes []Sta
 			return &at
 		}
 	}
-	if closedOn == nil {
-		return nil
+	if closedOn != nil {
+		at := *closedOn
+		return &at
 	}
-	at := *closedOn
-	return &at
+	if len(changes) == 0 && !created.IsZero() {
+		at := created
+		return &at
+	}
+	return nil
 }
 
 // LeadTimeMinutes returns whole minutes between created and resolution, nil

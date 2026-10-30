@@ -680,6 +680,7 @@ func TestResolutionDate(t *testing.T) {
 		name     string
 		mapping  *models.Transformation
 		statusID int
+		created  time.Time
 		closedOn *time.Time
 		changes  []StatusChange
 		want     *time.Time
@@ -727,7 +728,15 @@ func TestResolutionDate(t *testing.T) {
 		},
 		{name: "an open issue has no resolution even with a stale closed_on", statusID: 2, closedOn: hourPtr(9)},
 		{name: "no history falls back to closed_on", statusID: 5, closedOn: hourPtr(9), want: hourPtr(9)},
-		{name: "no history and no closed_on yields nil", statusID: 5},
+		{name: "no history, no closed_on and no creation time yields nil", statusID: 5},
+		{
+			name: "an issue whose status never changed resolves at its creation", mapping: verifiedIsDone, statusID: 13,
+			created: hour(1), want: hourPtr(1),
+		},
+		{
+			name: "closed_on still wins over the creation time", statusID: 5, created: hour(1), closedOn: hourPtr(4),
+			want: hourPtr(4),
+		},
 		{
 			name: "an issue created in a DONE status falls back to closed_on", statusID: 6, closedOn: hourPtr(1),
 			changes: []StatusChange{change(4, 5, 6)}, want: hourPtr(1),
@@ -753,7 +762,7 @@ func TestResolutionDate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := NewMapper(tc.mapping, inst)
 			issue := &Issue{StatusID: tc.statusID, StatusName: "x"}
-			got := m.ResolutionDate(issue, tc.closedOn, tc.changes)
+			got := m.ResolutionDate(issue, tc.created, tc.closedOn, tc.changes)
 			if tc.want == nil {
 				assert.Nil(t, got)
 				return
@@ -767,21 +776,21 @@ func TestResolutionDate(t *testing.T) {
 func TestResolutionDateUsesTheIssuesClosedFlagForAnUnknownStatus(t *testing.T) {
 	m := NewMapper(nil, Instance{})
 	changes := []StatusChange{{At: hour(2), FromStatusID: 1, ToStatusID: 99, ToStatusName: "Gone"}}
-	got := m.ResolutionDate(&Issue{StatusID: 99, StatusName: "Gone", StatusIsClosed: true}, nil, changes)
+	got := m.ResolutionDate(&Issue{StatusID: 99, StatusName: "Gone", StatusIsClosed: true}, time.Time{}, nil, changes)
 	assert.Nil(t, got, "the change's own side carries no flag, so an unknown status never opens a DONE run")
-	assert.Nil(t, m.ResolutionDate(&Issue{StatusID: 99, StatusName: "Gone"}, hourPtr(3), changes), "an unknown open status is not DONE")
+	assert.Nil(t, m.ResolutionDate(&Issue{StatusID: 99, StatusName: "Gone"}, time.Time{}, hourPtr(3), changes), "an unknown open status is not DONE")
 }
 
 func TestResolutionDateDoesNotAliasInputs(t *testing.T) {
 	m := NewMapper(nil, Instance{Statuses: []models.StatusInfo{status(1, "New", false), status(5, "Closed", true)}})
 	changes := []StatusChange{{At: hour(3), FromStatusID: 1, ToStatusID: 5}}
-	got := m.ResolutionDate(&Issue{StatusID: 5}, nil, changes)
+	got := m.ResolutionDate(&Issue{StatusID: 5}, time.Time{}, nil, changes)
 	require.NotNil(t, got)
 	*got = hour(20)
 	assert.Equal(t, hour(3), changes[0].At)
 
 	closedOn := hour(7)
-	got = m.ResolutionDate(&Issue{StatusID: 5}, &closedOn, nil)
+	got = m.ResolutionDate(&Issue{StatusID: 5}, time.Time{}, &closedOn, nil)
 	require.NotNil(t, got)
 	*got = hour(20)
 	assert.Equal(t, hour(7), closedOn)
