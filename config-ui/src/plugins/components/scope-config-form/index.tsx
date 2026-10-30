@@ -41,6 +41,7 @@ import { ClickUpTransformation } from '@/plugins/register/clickup';
 import { YoutrackTransformation } from '@/plugins/register/youtrack';
 import { RedmineTransformation } from '@/plugins/register/redmine';
 import { ZephyrTransformation } from '@/plugins/register/zephyr';
+import { RedmineGoTransformation } from '@/plugins/register/redmine_go';
 import { DOC_URL } from '@/release';
 import { operator } from '@/utils';
 
@@ -337,6 +338,17 @@ export const ScopeConfigForm = ({
                   scopeConfigId={scopeConfigId}
                   transformation={transformation}
                   setTransformation={setTransformation}
+                />
+              )}
+
+              {plugin === 'redmine_go' && (
+                <RedmineGoTransformation
+                  entities={entities}
+                  connectionId={connectionId}
+                  scopeConfigId={scopeConfigId}
+                  transformation={transformation}
+                  setTransformation={setTransformation}
+                  setHasError={setHasError}
                 />
               )}
 
