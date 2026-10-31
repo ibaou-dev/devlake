@@ -169,6 +169,44 @@ for every scope config: `false` (or `0`, `f`) wins over the scope config; an
 unset flag or any other value has no effect, and `true` never forces a
 behaviour on.
 
+## Performance and sizing
+
+Measured on one host: Redmine 7.0.2 with a single Puma process, Postgres 18, and
+a 50 000-issue project with 229 000 journals, 362 000 field changes, 15 000
+time entries and 2 900 relations; the connection's request budget was raised
+to 108 000 an hour so Redmine, not the limiter, set the pace.
+
+| Run | Wall time | Where it goes |
+| --- | --- | --- |
+| First run, 50 000 issues | 36 min | Collection 34 min: issue details 28 min (one request per issue), issue list 3 min, sweep 3 min, time entries 8 s. Extraction and conversion 2.3 min. |
+| Incremental, 100 issues edited | 4.6 min | The sweep, 3 min; the rest is time entries, the 100 details and converting the project again. |
+
+- **Requests.** A first run sends about N/100 (issue list) + N (details) +
+  N/100 (sweep) + T/100 (time entries) requests, for N issues and T time
+  entries. A later run sends N/100 + T/100 plus one per edited issue, because
+  the sweep and the time entries are always read in full.
+- **Rate limit.** At the default 36 000 an hour (10 a second) the details of
+  50 000 issues take 83 minutes. That Redmine answered about 30 detail
+  requests a second before queueing: an interactive request stayed at about
+  40 ms while DevLake sent 10 or 20 a second, and its 95th percentile rose to
+  about 400-650 ms at 30 a second. The right limit depends on the cost of a
+  request on your Redmine, so the default stays conservative; raise it for a
+  large first collection when Redmine is quiet, and lower it if users notice.
+- **Cutting the incremental cost.** Switching `reconcileSweep` off saves the N/100
+  sweep requests per run, at the price of missing removed relations and deleted
+  issues.
+- **Memory.** DevLake's container peaked at 315-347 MiB (docker stats) over a
+  first run of 50 000 issues, and at 443 MiB in an earlier run over 14 000:
+  collectors, extractors and convertors work in batches of 500 rows, so the
+  peak does not follow the size of the project.
+- **Disk.** Per 50 000 issues of this shape: raw tables 130 MB, plugin tool
+  tables 170 MB, domain tables 190 MB. Raw tables are never compacted: each
+  run adds about 2 KB per re-collected issue.
+- **Progress.** Subtasks report progress against a counted total, so
+  `_devlake_subtasks.finished_records` of a finished extractor or convertor
+  shows the last percent written, not the final count; the task log has the
+  record count.
+
 ## Limits
 
 - Adding or removing a relation does not change an issue's `updated_on`, and
