@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/apache/devlake/core/dal"
 	"github.com/apache/devlake/core/errors"
 	"github.com/apache/devlake/core/plugin"
 	helper "github.com/apache/devlake/helpers/pluginhelper/api"
@@ -105,5 +106,22 @@ func CollectIssues(taskCtx plugin.SubTaskContext) errors.Error {
 	if err != nil {
 		return err
 	}
-	return apiCollector.Execute()
+	if err := apiCollector.Execute(); err != nil {
+		return err
+	}
+	rows, err := taskCtx.GetDal().Count(dal.From(rawTableName(RAW_ISSUES_TABLE)), dal.Where("params = ?", scopeParams(data)))
+	if err != nil {
+		return err
+	}
+	data.FullIssueRun = listedEveryIssue(apiCollector.IsIncremental(), since, rows)
+	return nil
+}
+
+// listedEveryIssue reports whether a collection of the issue list covered the
+// whole project: a full-sync run (not incremental) without a time bound that
+// found at least one issue. With a time bound the list stops at timeAfter, and
+// an empty list leaves the stored issues unreplaced, so in neither case does
+// the run prove what is gone from Redmine.
+func listedEveryIssue(incremental bool, since *time.Time, rows int64) bool {
+	return !incremental && since == nil && rows > 0
 }

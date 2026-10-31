@@ -44,7 +44,7 @@ var CollectIssueSweepMeta = plugin.SubTaskMeta{
 	Name:             "collectIssueSweep",
 	EntryPoint:       CollectIssueSweep,
 	EnabledByDefault: true,
-	Description:      "Page through the whole issue list of the project with its relations, to find relation changes and deleted issues that no updated_on reveals",
+	Description:      "Page through the whole issue list of the project with its relations, to find relation changes and deleted issues that no updated_on reveals; skipped on a full run that listed every issue",
 	DomainTypes:      []string{plugin.DOMAIN_TYPE_TICKET},
 	ProductTables:    []string{rawTableName(RAW_ISSUE_SWEEP_TABLE)},
 }
@@ -54,7 +54,7 @@ var ExtractIssueSweepMeta = plugin.SubTaskMeta{
 	Name:             "extractIssueSweep",
 	EntryPoint:       ExtractIssueSweep,
 	EnabledByDefault: true,
-	Description:      "Upsert the relations the sweep found, and delete relations and issues that Redmine no longer lists, from the tool and domain layers",
+	Description:      "Upsert the relations the sweep found, and delete relations and issues that Redmine no longer lists, from the tool and domain layers; after a full run that listed every issue, delete only the relations of issues that left the project",
 	DomainTypes:      []string{plugin.DOMAIN_TYPE_TICKET},
 	DependencyTables: []string{rawTableName(RAW_ISSUE_SWEEP_TABLE), models.RedmineGoIssue{}.TableName()},
 	ProductTables:    []string{models.RedmineGoIssueRelation{}.TableName()},
@@ -104,13 +104,49 @@ func parseSweepPage(res *http.Response) ([]json.RawMessage, errors.Error) {
 	return rows, nil
 }
 
+// removeOrphanRelations is what the sweep leaves to do after a full run that
+// listed every issue of the project. The full run replaced the project's issue
+// rows and every issue's relations, so a relation can only be stale when its
+// source issue is no longer one of the project's issues: it was deleted in
+// Redmine or moved away, and a relation row written by an earlier sweep is not
+// among those the details extractor wipes by origin. Such a relation is
+// deleted here, so the domain layer rebuilt after it does not keep it.
+func removeOrphanRelations(taskCtx plugin.SubTaskContext, connectionId, projectId uint64) errors.Error {
+	db := taskCtx.GetDal()
+	clauses := []dal.Clause{
+		dal.From(&models.RedmineGoIssueRelation{}),
+		dal.Where("connection_id = ? AND project_id = ?", connectionId, projectId),
+		dal.Where("issue_id NOT IN (SELECT id FROM "+models.RedmineGoIssue{}.TableName()+" WHERE connection_id = ? AND project_id = ?)", connectionId, projectId),
+	}
+	orphans, err := db.Count(clauses...)
+	if err != nil {
+		return err
+	}
+	if orphans > 0 {
+		if err := db.Delete(&models.RedmineGoIssueRelation{}, clauses[1:]...); err != nil {
+			return err
+		}
+	}
+	taskCtx.GetLogger().Info("issue sweep of project %d skipped after a full run: %d relations of issues that left the project deleted", projectId, orphans)
+	return nil
+}
+
 // CollectIssueSweep pages through the project's whole issue list, with
 // relations, replacing the project's sweep rows. Unlike the incremental issue
 // collector it ignores updated_on, because Redmine changes none when a
 // relation is added or removed or when an issue is deleted. A 403 or 404 fails
 // the subtask: an unreadable list must never read as an empty project.
+//
+// It sends nothing when this run already listed every issue of the project in
+// full (see RedmineGoTaskData.FullIssueRun): the full run replaced the issue
+// rows and re-read every issue's relations, and the list would repeat the
+// issue list's pages.
 func CollectIssueSweep(taskCtx plugin.SubTaskContext) errors.Error {
 	data := taskCtx.GetData().(*RedmineGoTaskData)
+	if data.FullIssueRun {
+		taskCtx.GetLogger().Info("issue sweep of project %d skipped: this run listed every issue of it in full", data.Options.ProjectId)
+		return nil
+	}
 	collector, err := helper.NewApiCollector(helper.ApiCollectorArgs{
 		RawDataSubTaskArgs: helper.RawDataSubTaskArgs{
 			Ctx: taskCtx,
@@ -149,10 +185,16 @@ func CollectIssueSweep(taskCtx plugin.SubTaskContext) errors.Error {
 //     a neighbour off a page; each candidate is therefore confirmed with one
 //     request before it is deleted, and a confirmed-present issue is kept
 //     together with its relations.
+//
+// After a full run that listed every issue of the project there is no sweep
+// to extract: only removeOrphanRelations runs.
 func ExtractIssueSweep(taskCtx plugin.SubTaskContext) errors.Error {
 	data := taskCtx.GetData().(*RedmineGoTaskData)
 	db := taskCtx.GetDal()
 	connectionId, projectId := data.Options.ConnectionId, data.Options.ProjectId
+	if data.FullIssueRun {
+		return removeOrphanRelations(taskCtx, connectionId, projectId)
+	}
 
 	// Without the collector's raw table the extractor would see an empty
 	// project and delete every issue of it.

@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/apache/devlake/core/dal"
 	"github.com/apache/devlake/core/errors"
 	"github.com/apache/devlake/core/plugin"
 	helper "github.com/apache/devlake/helpers/pluginhelper/api"
@@ -157,7 +158,31 @@ func ExtractIssues(taskCtx plugin.SubTaskContext) errors.Error {
 	if err != nil {
 		return err
 	}
-	return extractor.Execute()
+	if err := extractor.Execute(); err != nil {
+		return err
+	}
+	if data.FullIssueRun {
+		stale, err := countStaleIssues(taskCtx.GetDal(), connectionId, data.Options.ProjectId, scopeParams(data))
+		if err != nil {
+			return err
+		}
+		data.FullIssueRun = stale == 0
+	}
+	return nil
+}
+
+// countStaleIssues counts the project's issue rows that no current raw issue
+// row produced. A full collection replaces the raw rows, so such a row is an
+// issue the list no longer returns: deleted in Redmine or moved away. A
+// stateful extractor in full-sync mode deletes it, but one in incremental mode
+// does not, and a first run is incremental: the extractor starts from the
+// state its collector saved. The sweep is skipped only when none is left.
+func countStaleIssues(db dal.Dal, connectionId, projectId uint64, params string) (int64, errors.Error) {
+	return db.Count(
+		dal.From(&models.RedmineGoIssue{}),
+		dal.Where("connection_id = ? AND project_id = ?", connectionId, projectId),
+		dal.Where("(_raw_data_id IS NULL OR _raw_data_id NOT IN (SELECT id FROM "+rawTableName(RAW_ISSUES_TABLE)+" WHERE params = ?))", params),
+	)
 }
 
 // issueRow maps an API issue to its tool row. The project is the issue's own,

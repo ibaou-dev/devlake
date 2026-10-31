@@ -77,6 +77,9 @@ func CollectIssueDetails(taskCtx plugin.SubTaskContext) errors.Error {
 	if err != nil {
 		return err
 	}
+	if apiCollector.IsIncremental() {
+		data.FullIssueRun = false
+	}
 
 	clauses := []dal.Clause{
 		dal.Select("id"),

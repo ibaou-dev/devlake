@@ -22,9 +22,12 @@ import (
 	"fmt"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/apache/devlake/core/dal"
 	"github.com/apache/devlake/core/errors"
+	coremodels "github.com/apache/devlake/core/models"
+	"github.com/apache/devlake/core/models/common"
 	"github.com/apache/devlake/core/models/domainlayer"
 	"github.com/apache/devlake/core/models/domainlayer/crossdomain"
 	"github.com/apache/devlake/core/models/domainlayer/ticket"
@@ -329,6 +332,129 @@ func TestSweepKeepsAnIssueRedmineStillHasInTheProject(t *testing.T) {
 	assert.Equal(t, int64(1), issueFootprint(t, tester, 171)["_tool_redmine_go_issue_relations"], "with its relation")
 	assert.Equal(t, int64(1), issueFootprint(t, tester, 171)["issues"])
 	assert.Zero(t, issueFootprint(t, tester, 170)["_tool_redmine_go_issues"], "the one it no longer has in the project is deleted")
+}
+
+// A full run lists every issue and re-reads every relation, so its sweep is
+// skipped. What the sweep would have removed must be gone anyway: the issue
+// rows, the rows derived from them, and a relation of a vanished issue that an
+// earlier sweep wrote, which the details extractor's wipe by origin misses.
+func TestFullRunSkipsTheSweepAndLeavesNoStaleRows(t *testing.T) {
+	tester := newDataFlowTester(t)
+	importMetadata(t, tester)
+	loadIssueRaw(t, tester, "")
+	seedDeletedAndMovedIssues(t, tester)
+	params := `{"ConnectionId":1,"ProjectId":6}`
+
+	// The earlier run swept project 6 while Redmine still had both issues, and
+	// the sweep listed the deleted issue's relation: its row carries the sweep
+	// as origin.
+	cloneRaw(t, tester, rawSweepTable, params, 175, 171, func(issue map[string]interface{}) {
+		issue["relations"] = []interface{}{relation(95, 171, 152, "relates")}
+	})
+	cloneRaw(t, tester, rawSweepTable, params, 170, 170, nil)
+	runPlanned(tester, newTaskData(6, zeroConfig()))
+	var origin string
+	require.NoError(t, tester.Db.Table("_tool_redmine_go_issue_relations").Select("_raw_data_table").Where("id = ?", 95).Row().Scan(&origin))
+	require.Equal(t, rawSweepTable, origin, "the relation of the issue to be deleted was last written by the sweep")
+	for _, issueId := range []uint64{170, 171} {
+		require.Equal(t, int64(1), issueFootprint(t, tester, issueId)["issues"], "issue %d was collected", issueId)
+	}
+
+	// Redmine deletes 171 and moves 170 to another project. The full run lists
+	// neither, and its raw tables no longer hold them; the sweep's raw rows are
+	// the stale ones of the earlier run, which a skipped sweep must not read.
+	for _, table := range []string{rawIssuesTable, rawDetailsTable} {
+		for _, issueId := range []uint64{170, 171} {
+			deleteRawIssue(t, tester, table, params, issueId)
+		}
+	}
+	for _, text := range []string{`"id":352`, `"id":354`} {
+		deleteRawContaining(t, tester, rawTimeEntriesTable, text)
+	}
+	var before int64
+	require.NoError(t, tester.Db.Table(rawSweepTable).Count(&before).Error)
+
+	data := newTaskData(6, zeroConfig())
+	data.FullIssueRun = true
+	// The client is nil in e2e tests: collecting would fail.
+	runSubtask(tester, tasks.CollectIssueSweepMeta, data)
+	var after int64
+	require.NoError(t, tester.Db.Table(rawSweepTable).Count(&after).Error)
+	assert.Equal(t, before, after, "a skipped collector leaves the sweep rows alone")
+
+	runPlanned(tester, data)
+	for _, issueId := range []uint64{170, 171} {
+		for table, rows := range issueFootprint(t, tester, issueId) {
+			assert.Zero(t, rows, "issue %d must be gone from %s", issueId, table)
+		}
+	}
+	assert.Zero(t, count(t, tester, &models.RedmineGoIssueRelation{}, "id = ?", 95))
+	assert.Equal(t, int64(5), count(t, tester, &models.RedmineGoIssueRelation{}, "project_id = ?", 6), "the project's own relations stay")
+	assert.Equal(t, int64(24), count(t, tester, &models.RedmineGoIssue{}, "project_id = ?", 6))
+	assert.Equal(t, int64(24), count(t, tester, &ticket.Issue{}, ""))
+	assert.Equal(t, int64(5), count(t, tester, &ticket.IssueRelationship{}, ""))
+}
+
+// The sweep is skipped only when the issue extractor left no issue row of an
+// earlier run behind. An extractor in incremental mode does not wipe, so a
+// deleted issue's row survives it, and the claim that the run rebuilt
+// everything is withdrawn.
+func TestStaleIssueRowWithdrawsTheFullRunClaim(t *testing.T) {
+	tester := newDataFlowTester(t)
+	importMetadata(t, tester)
+	loadIssueRaw(t, tester, "")
+	seedDeletedAndMovedIssues(t, tester)
+	beginStatefulScenario(t, tester)
+	data := newTaskData(6, zeroConfig())
+	data.FullIssueRun = true
+
+	runSubtaskPreservingState(t, tester, tasks.ExtractIssuesMeta, data)
+	assert.True(t, data.FullIssueRun, "the first extraction is a full sync and every row has a current raw row")
+	require.Equal(t, int64(1), issueFootprint(t, tester, 171)["_tool_redmine_go_issues"])
+
+	// The next full collection replaces the raw rows, so every row gets a new
+	// id and the two issues that left are not in it.
+	for _, issueId := range []uint64{170, 171} {
+		deleteRawIssue(t, tester, rawIssuesTable, `{"ConnectionId":1,"ProjectId":6}`, issueId)
+	}
+	require.NoError(t, tester.Db.Exec("UPDATE "+rawIssuesTable+" SET id = id + 100000, created_at = ?", time.Now()).Error)
+	runSubtaskPreservingState(t, tester, tasks.ExtractIssuesMeta, data)
+	assert.False(t, data.FullIssueRun, "the incremental extraction left the deleted issues' rows, so the sweep must run")
+	assert.Equal(t, int64(1), issueFootprint(t, tester, 171)["_tool_redmine_go_issues"])
+}
+
+// A first run has no extractor state of its own: the extractor starts from the
+// state its collector saved, so it is incremental and wipes nothing. With no
+// row of an earlier run to wipe, the claim holds; a leftover row withdraws it.
+func TestFirstRunKeepsTheFullRunClaimUnlessAnOldIssueRowRemains(t *testing.T) {
+	tester := newDataFlowTester(t)
+	importMetadata(t, tester)
+	loadIssueRaw(t, tester, "")
+	beginStatefulScenario(t, tester)
+	params := `{"ConnectionId":1,"ProjectId":6}`
+	require.NoError(t, tester.Db.AutoMigrate(&coremodels.CollectorLatestState{}))
+	require.NoError(t, tester.Db.Exec("DELETE FROM _devlake_collector_latest_state").Error)
+	defer tester.Db.Exec("DELETE FROM _devlake_collector_latest_state")
+	collected := time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, tester.Db.Create(&coremodels.CollectorLatestState{
+		RawDataTable: rawIssuesTable, RawDataParams: params, LatestSuccessStart: &collected,
+	}).Error)
+
+	data := newTaskData(6, zeroConfig())
+	data.FullIssueRun = true
+	runSubtaskPreservingState(t, tester, tasks.ExtractIssuesMeta, data)
+	require.Equal(t, int64(24), count(t, tester, &models.RedmineGoIssue{}, "project_id = ?", 6))
+	assert.True(t, data.FullIssueRun, "a first run left nothing of an earlier run behind")
+
+	// A row from before the scope's collector state was lost.
+	require.NoError(t, tester.Db.Create(&models.RedmineGoIssue{
+		ConnectionId: connectionId, Id: 999, ProjectId: 6, Subject: "left over",
+		RedmineCreatedOn: collected, RedmineUpdatedOn: collected,
+		RawDataOrigin: common.RawDataOrigin{RawDataTable: rawIssuesTable, RawDataParams: params, RawDataId: 777777},
+	}).Error)
+	runSubtaskPreservingState(t, tester, tasks.ExtractIssuesMeta, data)
+	assert.False(t, data.FullIssueRun, "an issue row that no current raw row produced withdraws the claim")
+	assert.Equal(t, int64(1), count(t, tester, &models.RedmineGoIssue{}, "id = ?", 999), "the incremental extractor does not wipe it, which is why the sweep must")
 }
 
 func TestTimeEntriesBecomeWorklogs(t *testing.T) {

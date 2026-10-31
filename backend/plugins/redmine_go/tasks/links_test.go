@@ -111,6 +111,26 @@ func TestParseSweepPageKeepsIdsAndRelationsOnly(t *testing.T) {
 	assert.NotNil(t, err, "a page that is not the issue list must fail the sweep, never read as an empty project")
 }
 
+func TestListedEveryIssueNeedsAFullUnboundedNonEmptyList(t *testing.T) {
+	bound := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name        string
+		incremental bool
+		since       *time.Time
+		rows        int64
+		want        bool
+	}{
+		{"first run, no time bound", false, nil, 50000, true},
+		{"full sync, no time bound", false, nil, 1, true},
+		{"an incremental run lists only what changed", true, &bound, 100, false},
+		{"an incremental run never proves a deletion", true, nil, 100, false},
+		{"a full run bounded by timeAfter stops at the bound", false, &bound, 50000, false},
+		{"an empty list leaves stored issues unreplaced", false, nil, 0, false},
+	} {
+		assert.Equal(t, tc.want, listedEveryIssue(tc.incremental, tc.since, tc.rows), tc.name)
+	}
+}
+
 func TestTimeEntryQueryUsesTheNumericProjectAndExcludesSubprojects(t *testing.T) {
 	query := timeEntryQuery(6, 100, 100)
 	assert.Equal(t, "6", query.Get("project_id"))

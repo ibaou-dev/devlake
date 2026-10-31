@@ -50,4 +50,12 @@ type RedmineGoTaskData struct {
 	// reconciliation sweep confirms with it before it deletes an issue; a nil
 	// probe, as in e2e tests, takes every issue missing from the sweep as gone.
 	IssueProbe IssueProbe
+	// FullIssueRun is true while this run has rebuilt everything the
+	// reconciliation sweep checks: collectIssues listed every issue of the
+	// project in a full collection without a time bound, collectIssueDetails
+	// re-read every issue's detail in full mode, and extractIssues left no
+	// issue row of an earlier run behind. The sweep then has nothing left to
+	// find and skips itself. A stage that does not hold clears the flag, so it
+	// is never true by accident.
+	FullIssueRun bool
 }
