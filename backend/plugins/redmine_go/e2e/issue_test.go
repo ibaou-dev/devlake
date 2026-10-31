@@ -18,10 +18,12 @@ limitations under the License.
 package e2e
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/apache/devlake/core/dal"
 	"github.com/apache/devlake/core/models/common"
+	"github.com/apache/devlake/core/models/domainlayer"
 	"github.com/apache/devlake/core/models/domainlayer/crossdomain"
 	"github.com/apache/devlake/core/models/domainlayer/ticket"
 	"github.com/apache/devlake/helpers/e2ehelper"
@@ -239,4 +241,35 @@ func TestConversionReplacesStaleDomainRows(t *testing.T) {
 	require.NoError(t, tester.Db.Where("1 = 1").Delete(&models.RedmineGoJournalDetail{}).Error)
 	convertIssues(tester, zeroConfig(), 6, 7, 8)
 	assert.Zero(t, count(t, tester, &ticket.IssueChangelogs{}, ""))
+}
+
+// An incident whose issue vanished from Redmine goes with it, even on a full
+// run where no sweep removes the issue explicitly; incidents of live issues
+// and of other connections stay.
+func TestConversionPrunesIncidentsOfVanishedIssues(t *testing.T) {
+	tester := newDataFlowTester(t)
+	importMetadata(t, tester)
+	loadIssueRaw(t, tester, "")
+	extractIssues(tester, 6, 7, 8)
+	convertIssues(tester, transformationFrom(t, fixturesConfig), 6, 7, 8)
+
+	live := issueByKey(t, tester, "174").Id
+	vanished := strings.TrimSuffix(live, ":174") + ":999999"
+	otherConnection := "redmine_go:RedmineGoIssue:4242:1"
+	clearTable(tester, &ticket.Incident{})
+	clearTable(tester, &ticket.IncidentAssignee{})
+	for _, id := range []string{live, vanished, otherConnection} {
+		require.NoError(t, tester.Db.Create(&ticket.Incident{DomainEntity: domainlayer.DomainEntity{Id: id}}).Error)
+		require.NoError(t, tester.Db.Create(&ticket.IncidentAssignee{IncidentId: id, AssigneeId: "a"}).Error)
+	}
+
+	convertIssues(tester, transformationFrom(t, fixturesConfig), 6, 7, 8)
+	for _, table := range []struct {
+		model  interface{}
+		column string
+	}{{&ticket.Incident{}, "id"}, {&ticket.IncidentAssignee{}, "incident_id"}} {
+		var ids []string
+		require.NoError(t, tester.Db.Model(table.model).Order(table.column).Pluck(table.column, &ids).Error)
+		assert.ElementsMatch(t, []string{live, otherConnection}, ids)
+	}
 }

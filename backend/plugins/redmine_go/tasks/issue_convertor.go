@@ -204,7 +204,10 @@ func ConvertIssues(taskCtx plugin.SubTaskContext) errors.Error {
 	if err != nil {
 		return err
 	}
-	return converter.Execute()
+	if err := converter.Execute(); err != nil {
+		return err
+	}
+	return pruneOrphanIncidents(db, connectionId)
 }
 
 // hoursToMinutes converts Redmine's decimal hours to whole minutes, nil when

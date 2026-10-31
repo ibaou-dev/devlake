@@ -18,6 +18,8 @@ limitations under the License.
 package tasks
 
 import (
+	"fmt"
+
 	"github.com/apache/devlake/core/dal"
 	"github.com/apache/devlake/core/errors"
 	"github.com/apache/devlake/core/models/domainlayer/crossdomain"
@@ -96,4 +98,20 @@ func removeIssues(db dal.Dal, connectionId uint64, issueIds []uint64) errors.Err
 		}
 	}
 	return nil
+}
+
+// pruneOrphanIncidents deletes the connection's incidents, and their
+// assignees, whose issue no longer exists in the domain layer. A full run
+// rewrites the scope's issues without the sweep, so an issue deleted in
+// Redmine leaves its incident behind; DORA's generator never removes it
+// because it only revisits issues that still exist.
+func pruneOrphanIncidents(db dal.Dal, connectionId uint64) errors.Error {
+	// DORA gives an incident its issue's id, so the connection's incidents
+	// match the same "<prefix>:<connectionId>:%" pattern as its issues.
+	pattern := didgen.NewDomainIdGenerator(&models.RedmineGoIssue{}).Generate(connectionId, didgen.WILDCARD)
+	orphan := "%[1]s LIKE ? AND %[1]s NOT IN (SELECT id FROM issues WHERE id LIKE ?)"
+	if err := db.Delete(&ticket.IncidentAssignee{}, dal.Where(fmt.Sprintf(orphan, "incident_id"), pattern, pattern)); err != nil {
+		return err
+	}
+	return db.Delete(&ticket.Incident{}, dal.Where(fmt.Sprintf(orphan, "id"), pattern, pattern))
 }
